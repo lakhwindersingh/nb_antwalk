@@ -1,0 +1,329 @@
+agent_id: agent_plan_architect
+agent_name: "Plan Architect"
+version: 1.0.0
+description: |
+  Specialized agent for compiling validated MVS specifications into formal
+  layerable domain plans. Responsible for task DAG decomposition, dependency
+  resolution, and plan validation against architectural constraints.
+
+capabilities:
+  - capability_id: CAP-PA-01
+    name: "MVS to Plan Compilation"
+    description: "Transform MVS YAML into layerable plan markdown following custom_domain_layer_template.md"
+    input_format: "MVS YAML specification"
+    output_format: "LayerablePlan markdown (concise.md)"
+
+  - capability_id: CAP-PA-02
+    name: "Task DAG Decomposition"
+    description: "Decompose plan into directed acyclic graph of executable tasks using petgraph"
+    input_format: "LayerablePlan components + contracts"
+    output_format: "TaskDAG with nodes, edges, execution phases"
+
+  - capability_id: CAP-PA-03
+    name: "Dependency Resolution"
+    description: "Resolve architectural gaps, identify blocking dependencies, validate feasibility"
+    input_format: "Component dependencies + integration_points"
+    output_format: "DependencyReport with resolved/unresolved gaps"
+
+  - capability_id: CAP-PA-04
+    name: "Contract Generation"
+    description: "Generate wire contracts (traits/interfaces) from component specifications"
+    input_format: "Component interfaces from MVS"
+    output_format: "Rust trait definitions in workplace/contracts/"
+
+  - capability_id: CAP-PA-05
+    name: "Plan Validation"
+    description: "Validate plan completeness, consistency, and architectural conformance"
+    input_format: "LayerablePlan + validation rules"
+    output_format: "ValidationReport with errors/warnings"
+
+model_configuration:
+  primary_model: claude-sonnet-5
+  fallback_model: claude-haiku-4-5
+  temperature: 0.2  # Very low for deterministic plan generation
+  max_tokens: 16000
+  reasoning_effort: high  # Complex architectural reasoning required
+
+tools_available:
+  - tool_name: petgraph_dag_builder
+    description: "Rust petgraph library for DAG construction and cycle detection"
+    usage: "Build DiGraph<Task, TaskDependency>, verify is_cyclic_directed() == false"
+
+  - tool_name: template_engine
+    description: "Handlebars template processor for plan generation"
+    usage: "Render custom_domain_layer_template.md with MVS data"
+
+  - tool_name: gap_resolver
+    description: "Check architectural gap registry against component dependencies"
+    usage: "Query GAP-001 through GAP-012 status, identify blockers"
+
+  - tool_name: contract_generator
+    description: "Generate Rust trait definitions from interface specifications"
+    usage: "Convert MVS component.interfaces to workplace/contracts/*.rs"
+
+wire_contracts:
+  - contract: thought_to_project_wire_contracts.yaml
+    implements:
+      - method: compile_layerable_plan
+        input_schema:
+          mvs_path: string (path to MVS YAML)
+          domain_slug: string (e.g., "vector_cache")
+          plan_title: string
+          template_path: string (default: custom_domain_layer_template.md)
+        output_schema:
+          plan_id: string (uuid)
+          plan_path: string (path to generated concise.md)
+          contract_paths: array of strings (generated contract file paths)
+          agent_names: array of strings (agents referenced in plan)
+          validation_status: enum [valid, warnings, invalid]
+          validation_issues: array of {severity, message, location}
+
+      - method: decompose_task_dag
+        input_schema:
+          plan_path: string (path to concise.md)
+          project_id: string (uuid)
+          decomposition_strategy: enum [llm_assisted, rule_based, hybrid]
+          max_task_count: integer (default: 20)
+        output_schema:
+          dag_id: string (uuid)
+          task_count: integer
+          tasks: array of {task_id, name, type, dependencies, estimated_duration_minutes}
+          execution_phases: array of {phase_number, tasks, parallelizable}
+          is_acyclic: boolean
+          cycle_check_passed: boolean
+          estimated_duration_minutes: integer
+
+      - method: resolve_dependencies
+        input_schema:
+          component_dependencies: array of strings (component names)
+          architectural_dependencies: array of {gap_id, required}
+        output_schema:
+          resolved_components: array of {component, resolution_path}
+          unresolved_gaps: array of {gap_id, blocking, reason}
+          can_proceed: boolean
+          blocking_issues: array of strings
+
+performance_targets:
+  compile_layerable_plan_p95_s: 10
+  decompose_task_dag_p95_s: 5
+  resolve_dependencies_p95_ms: 200
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: exponential
+    backoff_base_ms: 1000
+
+  escalation_rules:
+    - condition: "cycle_detected_in_dag"
+      action: quarantine
+      target: user/hitl/cyclic_dags/
+      message: "Task DAG contains circular dependencies. Manual review required."
+
+    - condition: "unresolved_blocking_gaps"
+      action: notify_user
+      message: "Plan depends on unresolved architectural gaps: {gap_ids}. Implement gaps first."
+
+    - condition: "validation_status == invalid"
+      action: quarantine
+      target: user/hitl/invalid_plans/
+      message: "Plan validation failed: {validation_issues}"
+
+    - condition: "task_count > max_task_count"
+      action: notify_user
+      message: "Plan too complex ({task_count} tasks). Consider splitting into multiple plans."
+
+invariants:
+  - name: "DAG Acyclicity"
+    rule: "All task DAGs must be acyclic (no circular dependencies)"
+    enforcement: "Run petgraph::is_cyclic_directed() before returning DAG"
+
+  - name: "Plan-MVS Consistency"
+    rule: "Generated plan must faithfully represent all MVS components and constraints"
+    enforcement: "Verify component count matches, all contracts generated"
+
+  - name: "Architectural Gap Resolution"
+    rule: "All blocking architectural gaps must be resolved before plan approval"
+    enforcement: "Query gap registry, fail if required gaps unresolved"
+
+  - name: "Contract Completeness"
+    rule: "Every component with interfaces must have a corresponding contract file"
+    enforcement: "Generate contracts for all components with non-empty interfaces array"
+
+agent_specific_rules:
+  - rule_id: RULE-PA-01
+    rule_name: "Task Granularity Control"
+    description: |
+      Tasks should be small enough to be implemented in <2 hours but large enough
+      to avoid excessive coordination overhead. Aim for 5-15 tasks per plan.
+
+    application:
+      - If plan has <3 tasks, consider merging related tasks
+      - If plan has >20 tasks, split into multiple phases or plans
+      - Each task should have clear inputs, outputs, and acceptance criteria
+
+  - rule_id: RULE-PA-02
+    rule_name: "Dependency Inference Strategy"
+    description: |
+      Infer task dependencies using heuristics:
+      1. Contracts before implementations
+      2. Data models before services
+      3. Core logic before tests
+      4. Unit tests before integration tests
+      5. All code before documentation
+
+    application:
+      - Use task type to determine typical dependencies
+      - Override with explicit dependencies from MVS if provided
+      - Ensure DAG respects natural implementation order
+
+  - rule_id: RULE-PA-03
+    rule_name: "Architectural Gap Handling"
+    description: |
+      Check architectural gap registry before plan compilation. If plan depends
+      on unresolved gaps, include them in plan metadata and mark as blocked.
+
+    prompt_template: |
+      Check if this plan depends on architectural gaps:
+
+      Plan components: {components}
+      Integration points: {integration_points}
+
+      Known gaps: GAP-001 through GAP-012
+
+      For each gap:
+      1. Is it required for this plan?
+      2. Is it currently resolved?
+      3. What's the impact if unresolved?
+
+      Return JSON:
+      {{
+        "required_gaps": [
+          {{"gap_id": "GAP-003", "required": true, "resolved": false, "impact": "..."}},
+          ...
+        ],
+        "can_proceed": boolean,
+        "blocking_issues": ["..."]
+      }}
+
+  - rule_id: RULE-PA-04
+    rule_name: "Plan Validation Severity"
+    description: |
+      Classify validation issues by severity:
+      - **Error**: Plan cannot be executed (missing components, cyclic deps)
+      - **Warning**: Plan may have issues (no tests, missing constraints)
+      - **Info**: Suggestions for improvement (add benchmarks, split tasks)
+
+      Only errors should block plan approval.
+
+    validation_checks:
+      errors:
+        - Missing required MVS fields (components, acceptance_criteria)
+        - Cyclic task dependencies
+        - References to non-existent components
+        - Unresolved blocking architectural gaps
+      warnings:
+        - No test strategy defined
+        - Missing performance constraints
+        - >20 tasks (consider splitting)
+        - No implementation phases
+      info:
+        - Could add more detailed acceptance criteria
+        - Consider adding benchmarks
+        - Document rollback strategy
+
+observability:
+  metrics:
+    - metric_name: plans_compiled_total
+      type: counter
+      labels: [domain, validation_status]
+
+    - metric_name: plan_compilation_duration_seconds
+      type: histogram
+
+    - metric_name: task_dag_size_distribution
+      type: histogram
+      buckets: [5, 10, 15, 20, 30]
+
+    - metric_name: dag_cycles_detected_total
+      type: counter
+
+    - metric_name: unresolved_gaps_distribution
+      type: histogram
+      buckets: [0, 1, 2, 5, 10]
+
+    - metric_name: contract_generation_duration_seconds
+      type: histogram
+
+  logging:
+    log_level: info
+    sensitive_fields: []  # Plans are not sensitive
+    audit_trail: true
+    audit_path: .nb/logs/audit/agent_plan_architect/
+
+testing_strategy:
+  unit_tests:
+    - test_name: "DAG cycle detection"
+      description: "Verify petgraph correctly identifies circular dependencies"
+      test_file: workplace/modules/pos_workflows/tests/dag_cycle_detection_test.rs
+
+    - test_name: "Template rendering accuracy"
+      description: "Ensure generated plans match MVS input data"
+      test_file: workplace/modules/pos_workflows/tests/plan_template_test.rs
+
+    - test_name: "Dependency inference correctness"
+      description: "Verify task dependencies follow heuristic rules"
+      test_file: workplace/modules/pos_workflows/tests/dependency_inference_test.rs
+
+  integration_tests:
+    - test_name: "End-to-end plan compilation"
+      description: "MVS → Plan → Validation → Contracts"
+      test_file: workplace/modules/pos_workflows/tests/e2e_plan_compilation_test.rs
+
+    - test_name: "Task DAG decomposition"
+      description: "Plan → DAG → Execution phases"
+      test_file: workplace/modules/pos_workflows/tests/e2e_dag_decomposition_test.rs
+
+    - test_name: "Gap resolution integration"
+      description: "Query gap registry, identify blockers"
+      test_file: workplace/modules/pos_workflows/tests/gap_resolution_test.rs
+
+status: prototype
+implementation_phase: foundation
+requires:
+  - pos_projects Rust crate
+  - petgraph 0.6+
+  - handlebars 4.5+
+  - gap_registry module
+  - custom_domain_layer_template.md
+
+related_agents:
+  - agent_thought_synthesizer: "Produces MVS specifications consumed by this agent"
+  - agent_autonomous_coder: "Consumes task DAGs produced by this agent"
+
+documentation:
+  usage_examples: |
+    # Compile plan from MVS
+    pos plan compile --mvs user/inputs/mvs-a3f2b9c1.yaml
+
+    # Decompose plan into task DAG
+    pos plan decompose --plan .nb/plan/extensions/vector_cache/concise.md
+
+    # Check dependencies and gaps
+    pos plan check-deps --plan .nb/plan/extensions/vector_cache/concise.md
+
+    # Validate plan completeness
+    pos plan validate --plan .nb/plan/extensions/vector_cache/concise.md
+
+  common_issues:
+    - issue: "Circular dependency detected in task DAG"
+      solution: "Review component dependencies in MVS. Ensure no A→B→A cycles. Consider introducing interface boundaries."
+
+    - issue: "Plan validation fails with missing components"
+      solution: "Ensure MVS has all required fields: components, acceptance_criteria, constraints. Check against plan_synthesis_contract.json."
+
+    - issue: "Unresolved architectural gaps block plan"
+      solution: "Implement required gaps first (e.g., GAP-001 for pos_thoughts). Check .nb/plan/architectural_gaps/ for implementation guides."
+
+    - issue: "Task count exceeds max_task_count"
+      solution: "Split MVS into multiple smaller plans, or increase max_task_count if complexity is justified."

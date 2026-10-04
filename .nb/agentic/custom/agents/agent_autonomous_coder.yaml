@@ -1,0 +1,356 @@
+agent_id: agent_autonomous_coder
+agent_name: "Autonomous Coder"
+version: 1.0.0
+description: |
+  Specialized agent for autonomous code generation from validated task DAGs.
+  Implements bounded TDD with self-healing: generates tests, implements code,
+  verifies, and retries on failure up to configured max_retries limit.
+
+capabilities:
+  - capability_id: CAP-AC-01
+    name: "Test-First Implementation"
+    description: "Generate tests before implementation following TDD discipline"
+    input_format: "Task specification with acceptance criteria"
+    output_format: "Rust test file with passing tests"
+
+  - capability_id: CAP-AC-02
+    name: "Code Generation"
+    description: "Generate production Rust code satisfying tests and contracts"
+    input_format: "Tests + component interface specifications"
+    output_format: "Rust source files with implementations"
+
+  - capability_id: CAP-AC-03
+    name: "Self-Healing Loop"
+    description: "Automatically fix test failures and compilation errors"
+    input_format: "Compilation/test error messages"
+    output_format: "Updated code with fixes applied"
+
+  - capability_id: CAP-AC-04
+    name: "Worktree Isolation"
+    description: "Execute all work in ephemeral git worktree for safety"
+    input_format: "Worktree lease + branch name"
+    output_format: "Isolated workspace path"
+
+  - capability_id: CAP-AC-05
+    name: "Commit Atomicity"
+    description: "Create atomic commits for each completed task"
+    input_format: "Task completion status + changed files"
+    output_format: "Git commit with descriptive message"
+
+model_configuration:
+  primary_model: claude-sonnet-5
+  fallback_model: claude-opus-5  # Use Opus for complex implementation tasks
+  temperature: 0.4  # Moderate creativity for code generation
+  max_tokens: 32000  # Large context for multi-file implementations
+  reasoning_effort: high  # Deep reasoning for correct implementations
+
+tools_available:
+  - tool_name: cargo_test_runner
+    description: "Run cargo test and capture output"
+    usage: "Execute tests in worktree, parse pass/fail results"
+
+  - tool_name: cargo_check
+    description: "Verify code compiles without errors"
+    usage: "Run cargo check, extract compilation errors if any"
+
+  - tool_name: git_worktree_manager
+    description: "Manage ephemeral git worktrees"
+    usage: "Create, commit to, and cleanup isolated worktrees"
+
+  - tool_name: error_parser
+    description: "Parse Rust compiler and test errors into structured format"
+    usage: "Extract error location, message, suggestion from rustc/test output"
+
+  - tool_name: code_formatter
+    description: "Format generated code with rustfmt"
+    usage: "Ensure generated code matches project style"
+
+wire_contracts:
+  - contract: thought_to_project_wire_contracts.yaml
+    implements:
+      - method: execute_autonomous_cicd
+        input_schema:
+          worktree_id: string (uuid)
+          dag_id: string (uuid)
+          execution_mode: enum [test_only, impl_only, full_tdd, verify_only]
+          max_retries: integer (default: 3)
+          require_human_review: boolean (default: false)
+        output_schema:
+          execution_id: string (uuid)
+          status: enum [completed, failed, quarantined, awaiting_hitl, cancelled]
+          tasks_completed: integer
+          tasks_failed: integer
+          retry_attempts_used: integer
+          test_results: object {total_tests, passed, failed, ignored}
+          commit_hashes: array of strings
+          error_log: string (if failed)
+
+      - method: provision_ephemeral_worktree
+        input_schema:
+          project_id: string (uuid)
+          branch_name: string
+          base_ref: string (default: "main")
+          lease_duration_hours: integer (default: 24)
+          agent_id: string
+        output_schema:
+          worktree_id: string (uuid)
+          worktree_path: string (absolute path)
+          branch: string
+          lease_id: string (uuid)
+          expires_at: datetime
+
+      - method: close_knowledge_loop
+        input_schema:
+          thought_id: string (uuid)
+          execution_id: string (uuid)
+          final_status: enum [shipped, failed, cancelled]
+          commit_hashes: array of strings
+          merkle_block_id: string
+          test_evidence_path: string
+        output_schema:
+          backlink_id: string (uuid)
+          thought_updated: boolean
+
+performance_targets:
+  execute_autonomous_cicd_p95_minutes: 45
+  task_implementation_p50_minutes: 5
+  self_healing_iteration_p95_seconds: 60
+
+error_handling:
+  retry_policy:
+    max_attempts: 3  # Bounded self-healing attempts per task
+    backoff_strategy: constant  # No backoff for coding retries
+    backoff_base_ms: 0
+
+  escalation_rules:
+    - condition: "retry_attempts >= max_retries"
+      action: quarantine
+      target: user/hitl/quarantined_implementations/
+      message: "Task failed after {max_retries} self-healing attempts. Human review required."
+
+    - condition: "test_pass_rate < 0.70"
+      action: quarantine
+      target: user/hitl/low_test_coverage/
+      message: "Test pass rate {test_pass_rate} below threshold. Manual review required."
+
+    - condition: "compilation_error_persists"
+      action: retry_with_constraint
+      constraint: "Include full compiler error with suggestion in next prompt"
+      max_retries: 2
+
+    - condition: "require_human_review == true"
+      action: wait_for_approval
+      approval_path: user/hitl/cicd_approval_queue/
+      message: "Implementation complete. Awaiting human review before merge."
+
+invariants:
+  - name: "Test-First Discipline"
+    rule: "Tests must be written and passing before implementation code is committed"
+    enforcement: "In full_tdd mode, generate tests first, verify they fail, then implement"
+
+  - name: "Worktree Isolation"
+    rule: "All code generation must occur in ephemeral worktree, never in main workspace"
+    enforcement: "Verify worktree_path before writing any files"
+
+  - name: "Atomic Commits"
+    rule: "Each task produces exactly one atomic commit with descriptive message"
+    enforcement: "Commit after each task completion, include task_id in message"
+
+  - name: "Bounded Retry"
+    rule: "Self-healing limited to max_retries attempts to prevent infinite loops"
+    enforcement: "Track retry_count per task, quarantine if exceeded"
+
+agent_specific_rules:
+  - rule_id: RULE-AC-01
+    rule_name: "TDD Execution Strategy"
+    description: |
+      Follow strict TDD cycle for each task:
+      1. Write test that captures acceptance criteria (RED)
+      2. Verify test fails (confirms test is valid)
+      3. Implement minimal code to pass test (GREEN)
+      4. Verify test passes
+      5. Refactor if needed (REFACTOR)
+      6. Commit atomically
+
+    execution_modes:
+      full_tdd: "Execute complete RED-GREEN-REFACTOR cycle"
+      test_only: "Generate tests only, stop before implementation"
+      impl_only: "Assume tests exist, implement code directly"
+      verify_only: "Run existing tests, report pass/fail"
+
+  - rule_id: RULE-AC-02
+    rule_name: "Self-Healing Strategy"
+    description: |
+      When tests fail or code doesn't compile:
+      1. Parse error message to understand root cause
+      2. Identify which file/line needs fixing
+      3. Apply targeted fix (avoid wholesale rewrites)
+      4. Re-run verification
+      5. If still failing and retries remaining, repeat
+      6. If retries exhausted, quarantine with diagnostics
+
+    healing_priorities:
+      - Compilation errors (highest priority)
+      - Test failures in core logic
+      - Test failures in edge cases
+      - Performance regressions
+      - Style/lint warnings (lowest priority)
+
+  - rule_id: RULE-AC-03
+    rule_name: "Commit Message Convention"
+    description: |
+      Each task commit follows conventional commits format:
+
+      <type>(<scope>): <subject>
+
+      <body>
+
+      Task-ID: {task_id}
+      DAG-ID: {dag_id}
+      Execution-ID: {execution_id}
+
+      Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
+    commit_types:
+      - feat: New feature implementation
+      - test: Test file creation
+      - fix: Bug fix or self-healing correction
+      - refactor: Code restructuring
+      - docs: Documentation updates
+
+  - rule_id: RULE-AC-04
+    rule_name: "Quarantine Triage"
+    description: |
+      When quarantining failed implementation, include:
+      1. Full error log from last attempt
+      2. Diff of attempted changes
+      3. Test output showing failures
+      4. Hypothesis for why self-healing failed
+      5. Suggested next steps for human
+
+    quarantine_structure: |
+      user/hitl/quarantined_implementations/{execution_id}/
+        ├── DIAGNOSIS.md           # Summary and hypothesis
+        ├── error_log.txt          # Full error output
+        ├── attempted_changes.diff # What was tried
+        ├── test_results.json      # Structured test failures
+        └── worktree_snapshot/     # Copy of final worktree state
+
+observability:
+  metrics:
+    - metric_name: autonomous_executions_total
+      type: counter
+      labels: [status, execution_mode]
+
+    - metric_name: execution_duration_seconds
+      type: histogram
+
+    - metric_name: tasks_per_execution_distribution
+      type: histogram
+      buckets: [5, 10, 15, 20, 30]
+
+    - metric_name: retry_attempts_distribution
+      type: histogram
+      buckets: [0, 1, 2, 3, 4, 5]
+
+    - metric_name: test_pass_rate
+      type: gauge
+
+    - metric_name: self_healing_success_rate
+      type: gauge
+
+    - metric_name: quarantine_rate
+      type: gauge
+
+  logging:
+    log_level: debug  # Detailed logs for debugging autonomous failures
+    sensitive_fields: []  # Code is not sensitive in this context
+    audit_trail: true
+    audit_path: .nb/logs/audit/agent_autonomous_coder/
+
+testing_strategy:
+  unit_tests:
+    - test_name: "Test generation accuracy"
+      description: "Verify generated tests correctly capture acceptance criteria"
+      test_file: workplace/modules/pos_agents/tests/test_generation_test.rs
+
+    - test_name: "Error parser correctness"
+      description: "Ensure rustc/test errors parsed into structured format"
+      test_file: workplace/modules/pos_agents/tests/error_parser_test.rs
+
+    - test_name: "Commit atomicity"
+      description: "Verify each task produces exactly one commit"
+      test_file: workplace/modules/pos_agents/tests/commit_atomicity_test.rs
+
+  integration_tests:
+    - test_name: "End-to-end TDD cycle"
+      description: "Full RED-GREEN-REFACTOR on sample task"
+      test_file: workplace/modules/pos_agents/tests/e2e_tdd_cycle_test.rs
+
+    - test_name: "Self-healing simulation"
+      description: "Inject errors, verify agent fixes them within retry limit"
+      test_file: workplace/modules/pos_agents/tests/e2e_self_healing_test.rs
+
+    - test_name: "Worktree isolation"
+      description: "Verify all work occurs in ephemeral worktree"
+      test_file: workplace/modules/pos_agents/tests/worktree_isolation_test.rs
+
+status: prototype
+implementation_phase: foundation
+requires:
+  - pos_agents Rust crate
+  - git2 0.18+ (for worktree management)
+  - cargo test harness
+  - petgraph task DAG
+  - WorktreeEngine with lease tracking
+
+related_agents:
+  - agent_plan_architect: "Produces task DAGs consumed by this agent"
+  - agent_code_reviewer: "Reviews generated code before merge (optional)"
+
+documentation:
+  usage_examples: |
+    # Execute autonomous CI/CD from task DAG
+    pos cicd execute --dag-id dag-f3a9b2 --worktree-id wt-c8d7e1
+
+    # Test-only mode (generate tests without implementation)
+    pos cicd execute --dag-id dag-f3a9b2 --mode test_only
+
+    # With human review gate before merge
+    pos cicd execute --dag-id dag-f3a9b2 --require-human-review
+
+    # Check execution status
+    pos cicd status --execution-id exec-a4b9c3
+
+    # Review quarantined implementation
+    cat user/hitl/quarantined_implementations/exec-a4b9c3/DIAGNOSIS.md
+
+  common_issues:
+    - issue: "Implementation quarantined after max retries"
+      solution: "Review DIAGNOSIS.md for root cause. Common issues: ambiguous requirements, missing dependencies, test oracle mismatch. May need to refine MVS or add architectural components."
+
+    - issue: "Test pass rate below threshold"
+      solution: "Check test_results.json for failure patterns. May indicate: implementation logic error, incorrect test expectations, or environmental issues in worktree."
+
+    - issue: "Worktree lease expired during execution"
+      solution: "Extend lease_duration_hours or optimize task decomposition to complete faster. Default 24h should be sufficient for most plans."
+
+    - issue: "Self-healing loop gets stuck on same error"
+      solution: "Indicates agent cannot resolve error autonomously. Check error_log.txt for repeating patterns. Likely requires human intervention to unblock."
+
+realistic_expectations:
+  autonomous_success_rate: 0.60  # 60% success on first attempt is realistic
+  avg_retry_attempts: 1.2  # Most tasks succeed with 0-1 retries
+  quarantine_rate: 0.15  # 15% of executions require HITL intervention
+  notes: |
+    Current LLM capabilities (Claude Sonnet 5) achieve 40-60% autonomous success
+    on complex implementation tasks. Success rate depends heavily on:
+    - Clarity of acceptance criteria in task specification
+    - Complexity of component interfaces
+    - Availability of similar examples in training data
+    - Test oracle accuracy
+
+    Expected to improve as:
+    - Task decomposition becomes more granular
+    - MVS specifications become more precise
+    - Agent learns from past failures (future: RAG over quarantined implementations)

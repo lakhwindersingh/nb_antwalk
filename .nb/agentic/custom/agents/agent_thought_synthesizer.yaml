@@ -1,139 +1,316 @@
 agent_id: agent_thought_synthesizer
-agent_name: Second Brain Synthesizer
+agent_name: "Thought Synthesizer"
 version: 1.0.0
-pillar: thoughts
-model_tier: tier_a
-description: Zettelkasten knowledge graph manager, associative thought capture, and daily reflection synthesis
+description: |
+  Specialized agent for evaluating thought readiness and synthesizing
+  Minimum Viable Set (MVS) specifications from unstructured CommonMark notes.
+  Responsible for ambiguity detection and clarification RFC generation.
 
 capabilities:
-  - quick_capture
-  - wikilink_parsing
-  - knowledge_graph_traversal
-  - associative_search
-  - daily_journal_synthesis
-  - concept_extraction
-  - bidirectional_linking
+  - capability_id: CAP-TS-01
+    name: "CommonMark AST Parsing"
+    description: "Parse pulldown-cmark AST to extract headings, code blocks, wikilinks, technical entities"
+    input_format: "CommonMark markdown string"
+    output_format: "Structured AST with extracted entities"
 
-tools:
-  - capture_note
-  - query_graph
-  - find_associative
-  - daily_journal
+  - capability_id: CAP-TS-02
+    name: "Actionability Scoring"
+    description: "Evaluate thought readiness using semantic checklist (0.0-1.0 scale)"
+    input_format: "Thought content + AST entities"
+    output_format: "ActionabilityReport with score, dimensions, missing_elements"
+
+  - capability_id: CAP-TS-03
+    name: "Ambiguity Detection"
+    description: "Identify missing critical elements using pragmatic checklist"
+    input_format: "Thought AST"
+    output_format: "AmbiguityReport with score, checks, missing_elements"
+
+  - capability_id: CAP-TS-04
+    name: "Clarification RFC Generation"
+    description: "Generate interactive RFC with targeted questions for ambiguous thoughts"
+    input_format: "AmbiguityReport + thought context"
+    output_format: "RFC markdown file with structured questions"
+
+  - capability_id: CAP-TS-05
+    name: "MVS Specification Synthesis"
+    description: "Auto-generate Minimum Viable Set specification from clarified thought"
+    input_format: "Thought content + optional RFC answers"
+    output_format: "MVS YAML conforming to plan_synthesis_contract.json"
 
 model_configuration:
-  primary_model: claude-3-7-sonnet
-  fallback_model: claude-3-5-haiku
-  temperature: 0.7
-  max_tokens: 8192
+  primary_model: claude-sonnet-5
+  fallback_model: claude-haiku-4-5
+  temperature: 0.3  # Low temperature for structured extraction
+  max_tokens: 8000
+  reasoning_effort: medium
 
-system_prompt: |
-  You are the Second Brain Synthesizer agent for Personal OS. Your role is to:
+tools_available:
+  - tool_name: pulldown_cmark_parser
+    description: "Rust crate for CommonMark AST traversal"
+    usage: "Parse markdown to structured events (heading, code_block, link, etc.)"
 
-  1. Capture fleeting thoughts instantly without friction
-  2. Parse markdown wikilinks [[like this]] and build bidirectional graph
-  3. Extract key concepts and entities for semantic linking
-  4. Find non-obvious associative connections between thoughts via embeddings
-  5. Synthesize daily journal entries from completed tasks, thoughts, and interactions
-  6. Facilitate Zettelkasten-style atomic note-taking workflow
+  - tool_name: llm_semantic_evaluator
+    description: "LLM-based evaluation for actionability scoring"
+    usage: "Call LLM with evaluation prompt to assess thought readiness"
 
-  PRINCIPLES:
-  - Every thought should be atomic (one idea per note)
-  - Thoughts should be densely linked to related concepts
-  - Daily journal synthesis should be reflective, not just a log
-  - Surface surprising connections that user might not notice
-  - Use progressive summarization for long-term retention
+  - tool_name: schema_validator
+    description: "JSON Schema validator for MVS output"
+    usage: "Validate generated MVS against plan_synthesis_contract.json"
 
-  CONSTRAINTS:
-  - Never modify user's original thought content without explicit permission
-  - Wikilink suggestions should be high-confidence only (>0.8 similarity)
-  - Daily synthesis should be under 500 words
+wire_contracts:
+  - contract: thought_to_project_wire_contracts.yaml
+    implements:
+      - method: evaluate_thought_readiness
+        input_schema:
+          thought_id: string (uuid)
+          content_markdown: string (max 100KB)
+          user_context: object (optional thresholds)
+        output_schema:
+          actionability_score: number (0.0-1.0)
+          readiness_status: enum [ready, needs_clarification, too_vague, too_complex]
+          extracted_entities: object {headings, code_blocks, wikilinks, technical_concepts}
+          ambiguity_score: number (0.0-1.0)
+          ambiguity_details: object {has_clear_goal, has_technical_details, ...}
+          recommendation: enum [promote_immediately, request_clarification, refine_and_retry, not_suitable]
 
-tool_schemas:
-  capture_note:
-    input:
-      title: string
-      content: string
-      thought_type:
-        type: string
-        enum: [fleeting, journal, atomic, concept]
-        default: fleeting
-      tags:
-        type: array
-        items: string
-    output:
-      thought_id: string
-      wikilinks_extracted:
-        type: array
-        items: string
+      - method: generate_clarification_rfc
+        input_schema:
+          thought_id: string (uuid)
+          ambiguity_details: object (from evaluate_thought_readiness)
+          rfc_template: enum [standard, technical, minimal]
+        output_schema:
+          rfc_id: string (uuid)
+          rfc_path: string (file path to generated RFC)
+          questions: array of {question_id, question_text, question_type, required, options}
+          expires_at: datetime (7 days from creation)
 
-  find_associative:
-    input:
-      query: string
-      limit:
-        type: integer
-        default: 5
-        max: 20
-      min_similarity:
-        type: number
-        default: 0.7
-        min: 0.0
-        max: 1.0
-    output:
-      type: array
-      items:
-        properties:
-          thought_id: string
-          title: string
-          similarity: number
-          snippet: string
+      - method: derive_mvs_specification
+        input_schema:
+          thought_id: string (uuid)
+          clarified_content: string (original + RFC answers if applicable)
+          target_domain: string (auto-detect or user-specified)
+          mvs_template: string (optional template path)
+        output_schema:
+          mvs_id: string (uuid)
+          mvs_path: string (path to generated MVS YAML)
+          domain_detected: string (storage|networking|api|ui|ml_inference|...)
+          mvs_content: object (structured MVS spec)
+          confidence: number (0.0-1.0)
 
-capability_token:
-  permissions:
-    - thoughts:read
-    - thoughts:write
-    - search:query
-    - vault:lease:openai_api_key:embedding_only
-  restrictions:
-    max_daily_captures: 500
-    max_thought_size_bytes: 102400  # 100 KB
-    max_graph_depth: 5
-
-workflow_integrations:
-  - wf_morning_brief
-  - wf_evening_reflection
-  - wf_weekly_synthesis
-
-background_tasks:
-  - name: orphan_thought_detector
-    schedule: "0 20 * * *"  # Daily at 8 PM
-    description: Find thoughts with no links (candidates for connection)
-  - name: concept_clustering
-    schedule: "0 2 * * 0"  # Weekly Sunday at 2 AM
-    description: Run graph clustering to discover emergent topic clusters
-  - name: daily_journal_reminder
-    schedule: "0 21 * * *"  # Daily at 9 PM
-    description: Prompt user to reflect on the day
-
-metrics:
-  success_criteria:
-    - average_links_per_thought > 2.0
-    - daily_journal_completion_rate > 0.8
-    - associative_search_relevance > 0.75
-  performance_targets:
-    capture_latency_ms: 100
-    graph_traversal_time_ms: 50
-    daily_synthesis_generation_time_s: 10
+performance_targets:
+  evaluate_thought_readiness_p95_ms: 500
+  generate_clarification_rfc_p95_s: 2
+  derive_mvs_specification_p95_s: 5
 
 error_handling:
   retry_policy:
     max_attempts: 2
-    backoff_strategy: none
-  fallback_behavior:
-    on_embedding_failure: save_without_semantic_links
-    on_graph_query_timeout: return_partial_results
+    backoff_strategy: exponential
+    backoff_base_ms: 500
 
-logging:
-  log_level: info
-  sensitive_fields_to_redact:
-    - thought_content  # Don't log full thought content
-  audit_trail: false
+  escalation_rules:
+    - condition: "actionability_score < 0.50"
+      action: notify_user
+      message: "Thought too vague for autonomous processing. Please add technical details."
+
+    - condition: "ambiguity_score > 0.60"
+      action: generate_clarification_rfc
+      message: "Thought has high ambiguity. Generating targeted questions for clarification."
+
+    - condition: "mvs_confidence < 0.60"
+      action: quarantine
+      target: user/hitl/poisoned_mvs_specs/
+      message: "MVS synthesis confidence too low. Manual review required."
+
+    - condition: "schema_validation_fails"
+      action: retry_with_constraint
+      constraint: "Include validation errors in next synthesis prompt"
+      max_retries: 2
+
+invariants:
+  - name: "Thought ID Uniqueness"
+    rule: "Every thought_id must correspond to exactly one thought in pos_thoughts"
+    enforcement: "Validate thought_id existence before processing"
+
+  - name: "MVS Schema Compliance"
+    rule: "All generated MVS specifications must validate against plan_synthesis_contract.json"
+    enforcement: "Run schema validation before returning result"
+
+  - name: "RFC Timeout Enforcement"
+    rule: "All clarification RFCs expire after 7 days if not answered"
+    enforcement: "Workflow stage timeout with cleanup action"
+
+  - name: "Ambiguity Threshold Consistency"
+    rule: "Ambiguity score > 0.40 triggers clarification RFC (unless user overrides)"
+    enforcement: "Check ambiguity score before proceeding to MVS synthesis"
+
+agent_specific_rules:
+  - rule_id: RULE-TS-01
+    rule_name: "Conservative Ambiguity Detection"
+    description: |
+      When in doubt about thought clarity, err on the side of requesting clarification.
+      False positives (asking unnecessary questions) are less harmful than false negatives
+      (proceeding with ambiguous requirements that result in incorrect implementations).
+
+    application:
+      - If actionability_score is borderline (0.60-0.70), check for concrete examples
+      - If no code blocks or data schemas present, flag as ambiguous
+      - If success criteria missing, always request clarification
+
+  - rule_id: RULE-TS-02
+    rule_name: "Domain Auto-Detection Confidence"
+    description: |
+      Only auto-detect domain if confidence > 0.80. If multiple domains apply or
+      confidence < 0.80, mark as "multi_domain" and request user clarification.
+
+    application:
+      - Analyze technical nouns to infer primary domain
+      - If >= 3 domains detected with similar weights, flag as multi_domain
+      - Single clear domain indicator (e.g., "Tantivy index") → high confidence
+
+  - rule_id: RULE-TS-03
+    rule_name: "Actionability Score Calibration"
+    description: |
+      Use LLM-based semantic evaluation, not heuristic formula. The LLM should
+      evaluate 5 dimensions: clear goal, technical details, success criteria,
+      dependencies/constraints, bounded scope. Average scores weighted equally.
+
+    prompt_template: |
+      Evaluate if this thought is ready to become a software project.
+
+      Thought: {content}
+
+      Rate 0.0-1.0 on these dimensions:
+      1. **Clear Goal**: Is the desired outcome explicitly stated?
+      2. **Technical Details**: Are APIs, data structures, or algorithms mentioned?
+      3. **Success Criteria**: Are acceptance criteria or metrics defined?
+      4. **Dependencies**: Are constraints or prerequisites identified?
+      5. **Bounded Scope**: Is the scope well-defined (not too vague or too large)?
+
+      Return JSON:
+      {{
+        "scores": {{
+          "clear_goal": 0.0-1.0,
+          "technical_details": 0.0-1.0,
+          "success_criteria": 0.0-1.0,
+          "dependencies": 0.0-1.0,
+          "bounded_scope": 0.0-1.0
+        }},
+        "overall_score": 0.0-1.0,
+        "reasoning": "...",
+        "missing_elements": ["...", "..."]
+      }}
+
+  - rule_id: RULE-TS-04
+    rule_name: "MVS Confidence Calculation"
+    description: |
+      MVS confidence is based on:
+      - Actionability score of source thought (40% weight)
+      - Number of concrete components extracted (30% weight)
+      - Presence of quantifiable constraints (20% weight)
+      - Architectural dependency resolution (10% weight)
+
+      Confidence < 0.70 requires HITL review before plan compilation.
+
+    formula: |
+      confidence = min(1.0,
+        0.40 * actionability_score +
+        0.30 * min(1.0, component_count / 5) +
+        0.20 * (has_constraints ? 1.0 : 0.5) +
+        0.10 * (all_gaps_resolved ? 1.0 : 0.5)
+      )
+
+observability:
+  metrics:
+    - metric_name: thoughts_evaluated_total
+      type: counter
+      labels: [readiness_status]
+
+    - metric_name: actionability_score_distribution
+      type: histogram
+      buckets: [0.3, 0.5, 0.65, 0.8, 0.95]
+
+    - metric_name: ambiguity_score_distribution
+      type: histogram
+      buckets: [0.2, 0.4, 0.6, 0.8, 1.0]
+
+    - metric_name: rfc_generated_total
+      type: counter
+      labels: [template_type]
+
+    - metric_name: mvs_synthesis_duration_seconds
+      type: histogram
+
+    - metric_name: mvs_confidence_distribution
+      type: histogram
+      buckets: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+  logging:
+    log_level: info
+    sensitive_fields: [thought_content, rfc_answers]
+    audit_trail: true
+    audit_path: .nb/logs/audit/agent_thought_synthesizer/
+
+testing_strategy:
+  unit_tests:
+    - test_name: "AST extraction completeness"
+      description: "Verify all markdown elements (headings, code, links) extracted correctly"
+      test_file: workplace/modules/pos_thoughts/tests/ast_extraction_test.rs
+
+    - test_name: "Actionability scoring accuracy"
+      description: "Compare LLM scores against manually labeled test set (n=50)"
+      test_file: workplace/modules/pos_thoughts/tests/actionability_calibration_test.rs
+
+    - test_name: "Ambiguity detection precision/recall"
+      description: "Measure false positive/negative rates on labeled dataset"
+      test_file: workplace/modules/pos_thoughts/tests/ambiguity_detection_test.rs
+
+  integration_tests:
+    - test_name: "End-to-end thought evaluation"
+      description: "Submit thought → receive actionability report"
+      test_file: workplace/modules/pos_workflows/tests/e2e_thought_evaluation_test.rs
+
+    - test_name: "RFC generation and parsing"
+      description: "Generate RFC → user fills answers → parse answers"
+      test_file: workplace/modules/pos_workflows/tests/e2e_rfc_roundtrip_test.rs
+
+    - test_name: "MVS schema validation"
+      description: "Generate MVS → validate against JSON Schema → catch violations"
+      test_file: workplace/modules/pos_workflows/tests/mvs_schema_validation_test.rs
+
+status: prototype
+implementation_phase: foundation
+requires:
+  - pos_thoughts Rust crate
+  - pulldown-cmark 0.9+
+  - LLM client (Claude Sonnet 5 API)
+  - SQLite thoughts table
+  - JSON Schema validator
+
+related_agents:
+  - agent_plan_architect: "Consumes MVS output to compile layerable plans"
+  - agent_autonomous_coder: "Receives compiled plans for implementation"
+
+documentation:
+  usage_examples: |
+    # Evaluate thought readiness
+    pos thought evaluate --id thought-98a2f1
+
+    # Force MVS synthesis (skip ambiguity check)
+    pos thought synthesize-mvs --id thought-98a2f1 --force
+
+    # Generate clarification RFC
+    pos thought clarify --id thought-98a2f1
+
+    # View generated MVS
+    cat user/inputs/mvs-{mvs_id}.yaml
+
+  common_issues:
+    - issue: "Actionability score consistently low"
+      solution: "Add code examples, data schemas, or concrete success criteria to thoughts"
+
+    - issue: "MVS confidence below threshold"
+      solution: "Add more technical detail to thought. Consider splitting complex thoughts into multiple smaller thoughts."
+
+    - issue: "RFC questions too generic"
+      solution: "Review ambiguity_details for specifics. Customize rfc_template based on thought domain."

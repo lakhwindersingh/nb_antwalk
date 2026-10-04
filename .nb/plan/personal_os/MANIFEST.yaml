@@ -1,7 +1,7 @@
 plan_id: domain_personal_os
 plan_name: Personal OS (Rust-based Agentic Life Operating System)
-version: 1.1.0
-capability_rating: Domain Specialist (P-OS-01 to P-OS-16)
+version: 1.2.0
+capability_rating: Domain Specialist (P-OS-01 to P-OS-17)
 plan_type: layerable_domain_plan
 status: specification
 parent_plan: .nb/plan/master/parent-master-plan/concise.md
@@ -10,19 +10,19 @@ dependencies:
 file_versions:
   readme:
     path: README.md
-    version: 1.1.0
+    version: 1.2.0
     last_modified: '2026-10-04'
     primary_purpose: Quick navigation, architecture summary, and onboarding
   concise:
     path: concise.md
-    version: 1.1.0
+    version: 1.2.0
     last_modified: '2026-10-04'
-    primary_purpose: Concise layerable domain specification and wire contract definition
+    primary_purpose: Concise layerable domain specification, wire contract definition, and lean 3-crate alternative
   detailed:
     path: detailed.md
-    version: 1.1.0
+    version: 1.2.0
     last_modified: '2026-10-04'
-    primary_purpose: Deep architectural blueprint, Rust crate design, SQLite schema, and security invariants
+    primary_purpose: Deep architectural blueprint, Rust crate design, SQLite schema, MCP catalog, and Section 8 Pragmatic Lean Architecture
 key_capabilities:
   - P-OS-01: Multi-Workspace Project & Git Worktree Lifecycle Engine
   - P-OS-02: Content-Addressable Semantic File Indexer & Watcher Daemon
@@ -40,17 +40,24 @@ key_capabilities:
   - P-OS-14: Durable Saga Workflow Execution & Checkpointing Engine
   - P-OS-15: Yrs CRDT Multi-Device Peer Synchronization Engine
   - P-OS-16: BIP-39 Vault Disaster Recovery & M-of-N Quorum Derivation
+  - P-OS-17: Pragmatic 3-Crate Modular Monolith & Lean Architecture Engine
 implementation_phases:
-  phase_1: Core Rust Workspace & Unified Storage Engine (SQLite, Tantivy, BLAKE3, MPSC Batcher)
-  phase_2: Security Enclave Vault & Credential Brokerage (OS Keychain, Argon2id, ChaCha20, Zeroize, BIP-39)
-  phase_3: 8 Domain Subsystems & Meta-Orchestrator (Projects, Files, Thoughts, Activities, Workflows, Vault, Interactions, Purchases, Orchestrator)
-  phase_4: Async Multi-Agent Actor Runtime & Durable Sagas (Tokio, Axum, Sandbox Runtime, vLLM/ONNX)
-  phase_5: Interactive CLI, SiriKit/Live Activities, Web Dashboard & CRDT Mesh Sync
+  enterprise_track:
+    phase_1: Core Rust Workspace & Unified Storage Engine (SQLite, Tantivy, BLAKE3, MPSC Batcher)
+    phase_2: Security Enclave Vault & Credential Brokerage (OS Keychain, Argon2id, ChaCha20, Zeroize, BIP-39)
+    phase_3: 8 Domain Subsystems & Meta-Orchestrator (Projects, Files, Thoughts, Activities, Workflows, Vault, Interactions, Purchases, Orchestrator)
+    phase_4: Async Multi-Agent Actor Runtime & Durable Sagas (Tokio, Axum, Sandbox Runtime, vLLM/ONNX)
+    phase_5: Interactive CLI, SiriKit/Live Activities, Web Dashboard & CRDT Mesh Sync
+  lean_mvp_track:
+    stage_1: 3-Crate Monolith Foundation, SQLite WAL + FTS5 & Keyring (Weeks 1-2)
+    stage_2: Domain Engines (Markdown Thoughts, Git Worktrees, Flat Expense, Habits) (Weeks 3-5)
+    stage_3: 12 Consolidated MCP Tools, Ollama Local LLM & Clap CLI (Weeks 6-8)
 success_metrics:
   memory_safety: 100% safe Rust (zero undefined behavior)
   search_latency_p99: "< 15ms hybrid vector/FTS search across 100k items"
   vault_leak_probability: 0.0% (strict Zeroize memory scrubbing + redacted logs)
   offline_first_resilience: 100% functional without external cloud connectivity
+  lean_build_time: "< 50 seconds clean build with 3-crate architecture"
 related_contracts:
   - .nb/context/contracts/personal_os_wire_contracts.yaml
   - .nb/context/contracts/vault_security_contract.json

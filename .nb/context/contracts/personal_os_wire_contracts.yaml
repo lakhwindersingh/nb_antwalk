@@ -1,4 +1,4 @@
-schema_version: "1.1.0"
+schema_version: "1.2.0"
 domain: "personal_os"
 service_endpoint: "/api/v1/personal_os"
 description: "Core IPC/REST/MCP wire contracts for Personal OS 8-pillar architecture + Meta-Orchestrator"
@@ -612,6 +612,128 @@ pillars:
             verified: { type: "boolean" }
             block_count: { type: "integer" }
             latest_hash: { type: "string" }
+
+
+mcp_consolidated_tools_v1_2:
+  description: "12 Consolidated High-Leverage MCP Tools (Release 1.2.0 Pragmatic Lean Interface)"
+  tools:
+    - name: "pos_search"
+      description: "Unified hybrid search across thoughts, files, tasks, and contacts (SQLite FTS5 + LanceDB)"
+      parameters:
+        type: "object"
+        required: ["query"]
+        properties:
+          query: { type: "string" }
+          mode: { type: "string", enum: ["hybrid", "lexical", "semantic"], default: "hybrid" }
+          filter_pillar: { type: "string", enum: ["thoughts", "files", "projects", "activities", "interactions", "all"], default: "all" }
+          limit: { type: "integer", default: 10 }
+    - name: "pos_project"
+      description: "Manage projects, Git worktrees, and task DAGs"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["status", "list", "create_worktree", "add_task", "execute_dag"] }
+          project_id: { type: "string" }
+          branch_name: { type: "string" }
+          task_id: { type: "string" }
+          task_title: { type: "string" }
+    - name: "pos_file"
+      description: "Ingest, read, and inspect files with automatic text extraction"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["ingest", "metadata", "read_text", "run_ocr"] }
+          file_path: { type: "string" }
+          blake3_hash: { type: "string" }
+    - name: "pos_thought"
+      description: "Capture, search, and synthesize Zettelkasten Markdown thoughts"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["capture", "read", "query_links", "synthesize_project"] }
+          title: { type: "string" }
+          content: { type: "string" }
+          thought_id: { type: "string" }
+          tags: { type: "array", items: { type: "string" } }
+    - name: "pos_activity"
+      description: "Inspect agenda, schedule focus blocks, and track habit streaks"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["agenda", "schedule_block", "habit_log", "habit_status"] }
+          date: { type: "string" }
+          title: { type: "string" }
+          duration_min: { type: "integer" }
+          habit_id: { type: "string" }
+    - name: "pos_workflow"
+      description: "Dispatch async workflows and trigger routine synthesizers"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["dispatch", "status", "cancel", "run_routine"] }
+          workflow_id: { type: "string" }
+          routine: { type: "string", enum: ["morning_brief", "evening_reflection", "weekly_hygiene"] }
+    - name: "pos_vault"
+      description: "Request ephemeral secret leases or audit access (HITL Gated)"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["request_lease", "revoke_lease", "audit_trail"] }
+          secret_name: { type: "string" }
+          duration_sec: { type: "integer", default: 300 }
+          lease_id: { type: "string" }
+    - name: "pos_interaction"
+      description: "Log meeting debriefs, view contacts, and resolve entities"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["log_meeting", "get_contact", "resolve_entity"] }
+          title: { type: "string" }
+          raw_transcript: { type: "string" }
+          contact_id_or_name: { type: "string" }
+    - name: "pos_finance"
+      description: "Log expenses, audit subscriptions, and resolve HITL approvals (HITL Gated)"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["log_expense", "list_subscriptions", "resolve_hitl"] }
+          vendor: { type: "string" }
+          amount: { type: "number" }
+          category: { type: "string" }
+          approval_id: { type: "string" }
+          decision: { type: "string", enum: ["approve", "reject"] }
+    - name: "pos_agent"
+      description: "Spawn and monitor sandboxed subagents"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["spawn_task", "query_status", "kill"] }
+          task_id: { type: "string" }
+          instance_id: { type: "string" }
+    - name: "pos_orchestrator"
+      description: "Classify incoming intent and synthesize multi-domain routing plans"
+      parameters:
+        type: "object"
+        required: ["action", "request_text"]
+        properties:
+          action: { type: "string", enum: ["classify", "route_plan"] }
+          request_text: { type: "string" }
+    - name: "pos_ledger"
+      description: "Verify Merkle state ledger integrity"
+      parameters:
+        type: "object"
+        required: ["action"]
+        properties:
+          action: { type: "string", enum: ["verify_chain", "get_latest_block"] }
 
 security:
   authentication: "local_daemon_only"

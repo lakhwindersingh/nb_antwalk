@@ -1,9 +1,9 @@
 # Domain Plan: Personal OS (Rust-Based Agentic Life Operating System)
 
 **Plan ID**: `domain_personal_os`  
-**Capability Rating**: `Domain Specialist (P-OS-01 to P-OS-16)`  
+**Capability Rating**: `Domain Specialist (P-OS-01 to P-OS-17)`  
 **Parent Plan**: [Parent Master Plan](../master/parent-master-plan/concise.md)  
-**Version**: `1.1.0`  
+**Version**: `1.2.0`  
 **Runtime Core**: Safe Rust (2021 Edition, `tokio`, `sqlx`, `tantivy`, `axum`)
 
 ---
@@ -33,7 +33,7 @@ The system is designed on top of the **Neutron Binary Percipience Parent Master 
 ## 2. Quick Links
 
 - **[concise.md](./concise.md)**: Concise layerable domain specification (~220 lines), frontmatter, wire contracts, and agent manifests.
-- **[detailed.md](./detailed.md)**: Comprehensive architectural blueprint, Rust crate decomposition, database schemas, cryptographic invariants, and verification harnesses.
+- **[detailed.md](./detailed.md)**: Comprehensive architectural blueprint, Rust crate decomposition, database schemas, cryptographic invariants, verification harnesses, and **Section 8: Pragmatic Lean Alternatives**.
 - **[MANIFEST.yaml](./MANIFEST.yaml)**: Machine-readable plan metadata, version hash ledger, and phase roadmap.
 - **[Architecture Gaps & Resolutions](../architecture/GAPS_COMPLETE.md)**: Specifications for GAP-001 through GAP-012 (CRDT sync, write batching, NER redaction, durable sagas, BIP-39 recovery).
 - **[Interaction Points Topology](../INTERACTION_POINTS.md)**: Comprehensive interaction mechanisms across ingestion, domain execution, and storage/audit pipelines.
@@ -59,6 +59,9 @@ The system is designed on top of the **Neutron Binary Percipience Parent Master 
 | 10 | **Agents** | Multi-agent actor runtime, sandbox executor (Bubblewrap/Seatbelt) | `pos_agents` (`tokio`, `async-trait`) |
 | 11 | **Server** | Axum HTTP/WebSocket API daemon, native MCP server bridge | `pos_server` (`axum`, `tower`, `tokio-tungstenite`) |
 | 12 | **CLI** | Production terminal command-line tool | `pos_cli` (`clap` v4) |
+
+> [!TIP]
+> **Pragmatic Lean Architecture Option**: An alternative 3-crate modular architecture (`pos_core`, `pos_server`, `pos_cli`) is fully specified in [`detailed.md#8-pragmatic-reassessment-simpler-easier-architecture--lean-alternatives`](./detailed.md). It delivers 90%+ of capabilities while cutting compile times by 7x, reducing LOC by 68%, and accelerating MVP delivery from 24 weeks down to 6–8 weeks.
 
 ---
 

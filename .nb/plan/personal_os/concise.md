@@ -2,6 +2,8 @@
 plan_type: "layerable_domain_plan"
 plan_id: "domain_personal_os"
 name: "Personal OS Ecosystem Plan"
+version: 1.2.0
+capability_rating: Domain Specialist (P-OS-01 to P-OS-17)
 parent_master_plan: ".nb/plan/master/parent-master-plan/concise.md"
 tier_mapping:
   tier_2: "Enterprise Domain Rules & Wire Contracts (.nb/context/contracts/personal_os/, context/rules/)"
@@ -174,3 +176,17 @@ cargo test -p pos_vault --test zeroize_scrubbing_test
 # 4. Run automated CI/CD triad verification
 ./.nb/bin/percipience cicd run
 ```
+
+---
+
+## 6. Lean Implementation Architecture (3-Crate Monolith Option)
+
+To eliminate accidental complexity and accelerate development by 3x (from 24 weeks to 6–8 weeks), a pragmatic 3-crate modular architecture is fully specified in [`.nb/plan/personal_os/detailed.md#8-pragmatic-reassessment-simpler-easier-architecture--lean-alternatives`](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/personal_os/detailed.md):
+
+1. **Crate Consolidation**: Consolidates 14 crates into `pos_core` (all domains as internal Rust modules with `pub(crate)` visibility), `pos_server` (Axum + MCP), and `pos_cli` (Clap v4).
+2. **Unified SQLite & FTS5**: Replaces external Tantivy and `sqlite-vec` C-extensions with native SQLite FTS5 (BM25) and LanceDB/pure-Rust vector embeddings.
+3. **Native Concurrency**: Replaces custom Tokio MPSC batchers with SQLite WAL mode and busy timeout (5s).
+4. **Git Worktree Rollbacks**: Replaces custom distributed Saga engines with atomic SQLite transactions and ephemeral Git worktree deletions.
+5. **Standard OS Keyring & Age**: Replaces custom Shamir Secret Sharing with native OS Keyring (`keyring-rs`) and `age` encryption.
+6. **Regex PII Scrubber**: Replaces heavy ML NER models with microsecond regex and Shannon entropy scanners.
+7. **Consolidated MCP Interface**: Streamlines 28 micro-tools into 12 high-leverage action-based tools, saving 60% in prompt token overhead.

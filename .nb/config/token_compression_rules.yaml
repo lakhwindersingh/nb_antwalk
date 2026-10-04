@@ -1,0 +1,90 @@
+token_optimization:
+  enabled: true
+  mode: standard
+  strategies:
+    ast_skeleton_pruning: true
+    markdown_doc_pruning: true
+    config_schema_minification: true
+    diagnostic_log_slicing: true
+    git_diff_pruning: true
+    conversation_memory_compaction: true
+  excluded_paths:
+  - node_modules/**
+  - .git/**
+  - '**/*.min.js'
+  - '**/*.min.css'
+  excluded_extensions:
+  - .lock
+  - .sum
+  - .min.js
+  - .min.css
+  - .map
+  - .png
+  - .jpg
+  - .svg
+  portal_controls:
+    allow_user_override: true
+    show_realtime_roi_widget: true
+    default_model_rate_card: claude-3-5-sonnet-20241022
+compression_rules:
+  ast_pruning:
+    enabled: true
+    target_reduction_percentage: 60
+    strip_function_bodies: true
+    preserve_docstrings: false
+    supported_languages:
+    - typescript
+    - javascript
+    - python
+    - go
+    - rust
+  model_cascading:
+    provider_agnostic: true
+    default_provider: anthropic
+    models_epoch: 2026-09
+    review_by: '2026-12-31'
+    tier_a_frontier:
+      abstract_tier: Tier_A
+      description: Frontier / High Reasoning model for complex architecture, contracts,
+        security & disambiguation
+      reference_models:
+        anthropic: claude-3-7-sonnet
+        google: gemini-2.0-pro
+        openai: gpt-4o / o1
+        deepseek: deepseek-r1
+      tasks:
+      - mvs_derivation
+      - cross_module_contract_check
+      - verification_gate_audit
+      - security_compliance
+      - poisoning_diagnosis
+      - architectural_disambiguation
+    tier_b_compact:
+      abstract_tier: Tier_B
+      description: Fast / High Throughput compact model delivering ~90% cost arbitrage
+        on routine tasks
+      reference_models:
+        anthropic: claude-3-5-haiku
+        google: gemini-2.0-flash
+        openai: gpt-4o-mini
+      tasks:
+      - ast_symbol_extraction
+      - unified_diff_application
+      - unit_test_scaffolding
+      - git_commit_drafting
+      - dashboard_serialization
+      - living_documentation_synthesis
+    tier_c_deterministic:
+      abstract_tier: Tier_C
+      description: Deterministic AST parser and offline rule validator (zero LLM token
+        spend)
+      engine: tree-sitter-ast-pruner
+      tasks:
+      - ast_skeleton_caching
+      - posix_pid_probing
+      - wire_schema_draft07_validation
+      - mermaid_syntax_checking
+  budget_limits:
+    sprint_token_ceiling: 5000000
+    alert_threshold_percentage: 85
+    throttle_on_limit: true

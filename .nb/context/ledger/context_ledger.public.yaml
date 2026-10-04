@@ -1,0 +1,11 @@
+ledger_version: "7.5.0"
+project:
+  name: "nb_fairyfly"
+  tier: "plan_free"
+active_recovery_point: "RP_GENESIS_000"
+merkle_block_height: 1
+overall_maturity_score: 0.990
+quarantined_tests_count: 0
+active_poisoning_incidents: 0
+last_audit_timestamp: "2026-10-04T09:47:34.881381Z"
+continuity_verified: true

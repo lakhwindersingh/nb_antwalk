@@ -1,0 +1,22 @@
+ledger_version: "7.5.0"
+project:
+  name: "nb_fairyfly"
+  tier: "plan_free"
+  mode: "multi_module"
+ledger_chain:
+  - block_id: 0
+    block_type: "GENESIS"
+    prev_block_hash: "0000000000000000000000000000000000000000000000000000000000000000"
+    timestamp: "2026-10-04T09:47:34.881381Z"
+    merkle_root: "0000000000000000000000000000000000000000000000000000000000000000"
+    current_block_hash: "78a4a65740afce2f07ca3210d0071240fd86f0e5a73795c55a619064d604f861"
+    action: "BOOTSTRAP_FREE_WORKSPACE_GENESIS"
+recovery_points:
+  - id: "RP_GENESIS_000"
+    module_scope: "global_system"
+    git_commit: "HEAD"
+    timestamp: "2026-10-04T09:47:34.881381Z"
+    status: "VERIFIED"
+    description: "Genesis bootstrap of Free Community Plan workspace"
+quarantined_tests: []
+poisoning_incidents: []

@@ -1,0 +1,74 @@
+plans:
+  plan_free:
+    id: "plan_free"
+    name: "Free Community Tier"
+    base_price_monthly_usd: 0
+    included_seats: 1
+    included_concurrent_worktrees: 1
+    included_pr_audits_monthly: 500
+    features:
+      ast_token_pruning: true
+      merkle_chain_audit: true
+      basic_autonomous_cicd: true
+      platform_core_encryption: true
+      nbpack_obfuscation: false
+      user_plan_encryption: false
+      basic_platform_tools_exposure: false
+      private_vpc_deploy: false
+
+  plan_team:
+    id: "plan_team"
+    name: "Team Tier"
+    base_price_monthly_usd: 1499
+    included_seats: 15
+    included_concurrent_worktrees: 5
+    included_pr_audits_monthly: 5000
+    features:
+      ast_token_pruning: true
+      merkle_chain_audit: true
+      basic_autonomous_cicd: true
+      platform_core_encryption: true
+      nbpack_obfuscation: false
+      user_plan_encryption: false
+      basic_platform_tools_exposure: false
+      private_vpc_deploy: false
+
+  plan_business:
+    id: "plan_business"
+    name: "Business Tier"
+    base_price_monthly_usd: 4499
+    included_seats: 50
+    included_concurrent_worktrees: 20
+    included_pr_audits_monthly: 25000
+    features:
+      ast_token_pruning: true
+      merkle_chain_audit: true
+      basic_autonomous_cicd: true
+      platform_core_encryption: true
+      nbpack_obfuscation: true
+      user_plan_encryption: true
+      basic_platform_tools_exposure: true
+      private_vpc_deploy: false
+
+  plan_enterprise:
+    id: "plan_enterprise"
+    name: "Enterprise Dedicated Tier"
+    base_price_monthly_usd: 9999
+    included_seats: -1 # Unlimited
+    included_concurrent_worktrees: -1 # Unlimited
+    included_pr_audits_monthly: -1 # Unlimited
+    features:
+      ast_token_pruning: true
+      merkle_chain_audit: true
+      basic_autonomous_cicd: true
+      platform_core_encryption: true
+      nbpack_obfuscation: true
+      user_plan_encryption: true
+      basic_platform_tools_exposure: true
+      private_vpc_deploy: true
+      dedicated_slack_sla: true
+
+overage_pricing:
+  pr_audit_overage_usd: 0.05
+  worktree_compute_hour_usd: 0.15
+  token_savings_rev_share_rate: 0.15

@@ -1,0 +1,44 @@
+workflow_id: "basic_autonomous_cicd"
+name: "Free Community Autonomous CI/CD Pipeline"
+description: "Watered-down autonomous CI/CD workflow providing automated maintenance, AST token compression, basic bounded self-repair, and Merkle block sealing for the Free Plan."
+
+steps:
+  - step_id: "sustain_maintenance"
+    name: "Self-Sustaining Workspace Hygiene"
+    executor: "platform.self_sustaining_engine"
+    description: "Reclaims local worktree locks, purges scratch temporary artifacts, and checks ledger continuity."
+    inputs: ["user/scratch/", ".workspaces/"]
+    failure_action: "warn_and_continue"
+
+  - step_id: "ast_token_reduction"
+    name: "AST Token Skeletonization & Attention Budgeting"
+    executor: "platform.ast_pruner"
+    depends_on: ["sustain_maintenance"]
+    inputs: ["workplace/"]
+    config:
+      target_compression_pct: 65.0
+      strip_function_bodies: true
+      preserve_signatures: true
+
+  - step_id: "contract_and_test_gate"
+    name: "Basic Contract & Test Verification"
+    executor: "platform.contract_verifier"
+    depends_on: ["ast_token_reduction"]
+    inputs:
+      - ".nb/context/contracts/"
+      - "workplace/tests/"
+
+  - step_id: "bounded_auto_heal"
+    name: "Basic Single-Attempt Self-Healing"
+    executor: "platform.autonomous_healer"
+    depends_on: ["contract_and_test_gate"]
+    config:
+      max_retries: 1
+      fallback: "quarantine_and_notify"
+
+  - step_id: "merkle_state_seal"
+    name: "Cryptographic Merkle State Block Seal"
+    executor: "platform.merkle_ledger"
+    depends_on: ["bounded_auto_heal"]
+    action: "SEAL_BLOCK"
+    description: "Appends verified SHA-256 state transition block to context_ledger.yaml and updates public projection."

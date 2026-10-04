@@ -1,0 +1,163 @@
+workflow_id: wf_inbox_zero
+workflow_name: Guided Inbox Zero Workflow
+version: 1.0.0
+description: Interactive workflow to achieve inbox zero with AI assistance
+
+trigger_conditions:
+  - type: manual_invoke
+
+input_parameters:
+  account_id:
+    type: string
+    required: true
+    description: Email account to process
+
+steps:
+  - step_id: fetch_unread
+    name: Fetch Unread Emails
+    action: email_query
+    input:
+      account_id: "{{ input.account_id }}"
+      filters:
+        is_read: false
+        is_archived: false
+    output_variable: unread_emails
+    timeout_seconds: 10
+
+  - step_id: group_by_category
+    name: Group by Smart Inbox Category
+    action: group_by
+    input:
+      items: "{{ unread_emails }}"
+      key: category
+    output_variable: categorized
+    depends_on:
+      - fetch_unread
+
+  - step_id: process_action_required
+    name: Process Action Required (Interactive)
+    action: interactive_review
+    input:
+      title: "Action Required ({{ categorized.action_required | count }})"
+      emails: "{{ categorized.action_required }}"
+      actions: [reply, defer, archive, delete]
+      show_summary: true
+      show_extracted_entities: true
+    output_variable: action_decisions
+    depends_on:
+      - group_by_category
+
+  - step_id: apply_action_decisions
+    name: Apply User Decisions
+    action: batch_apply
+    input:
+      decisions: "{{ action_decisions }}"
+    output_variable: action_results
+    depends_on:
+      - process_action_required
+
+  - step_id: bulk_archive_newsletters
+    name: Archive All Newsletters
+    action: confirm_and_execute
+    input:
+      prompt: "Archive {{ categorized.newsletter | count }} newsletters?"
+      action: bulk_archive
+      emails: "{{ categorized.newsletter }}"
+    output_variable: newsletter_archived
+    depends_on:
+      - group_by_category
+
+  - step_id: review_fyi
+    name: Quick Review FYI Emails
+    action: interactive_review
+    input:
+      title: "FYI ({{ categorized.fyi | count }})"
+      emails: "{{ categorized.fyi }}"
+      actions: [archive, flag, delete]
+      show_summary: true
+      auto_advance: true
+    output_variable: fyi_decisions
+    depends_on:
+      - bulk_archive_newsletters
+
+  - step_id: apply_fyi_decisions
+    name: Apply FYI Decisions
+    action: batch_apply
+    input:
+      decisions: "{{ fyi_decisions }}"
+    output_variable: fyi_results
+    depends_on:
+      - review_fyi
+
+  - step_id: verify_receipts
+    name: Verify Receipt Extraction
+    action: interactive_review
+    input:
+      title: "Receipts ({{ categorized.receipt | count }})"
+      emails: "{{ categorized.receipt }}"
+      show_extracted_data: true
+      actions: [approve_and_archive, edit, skip]
+      default_action: approve_and_archive
+    output_variable: receipt_decisions
+    depends_on:
+      - apply_fyi_decisions
+
+  - step_id: finalize_receipts
+    name: Archive Verified Receipts
+    action: batch_apply
+    input:
+      decisions: "{{ receipt_decisions }}"
+    output_variable: receipt_results
+    depends_on:
+      - verify_receipts
+
+  - step_id: report_spam
+    name: Report and Delete Spam
+    action: confirm_and_execute
+    input:
+      prompt: "Report and delete {{ categorized.spam | count }} spam emails?"
+      action: report_spam
+      emails: "{{ categorized.spam }}"
+    output_variable: spam_deleted
+    depends_on:
+      - finalize_receipts
+
+  - step_id: final_summary
+    name: Display Inbox Zero Summary
+    action: notify
+    input:
+      channel: cli
+      message: |
+        ✅ Inbox Zero Achieved!
+
+        Processed: {{ unread_emails | count }}
+        - Action Required: {{ action_decisions | count }} processed
+        - FYI: {{ fyi_decisions | count }} archived
+        - Newsletters: {{ newsletter_archived }} archived
+        - Receipts: {{ receipt_decisions | count }} logged
+        - Spam: {{ spam_deleted }} deleted
+
+        ⏱️  Time saved: ~{{ (unread_emails | count) * 30 / 60 }} minutes
+      priority: high
+    depends_on:
+      - report_spam
+
+output:
+  total_processed: "{{ unread_emails | count }}"
+  inbox_zero: true
+  time_elapsed_seconds: "{{ workflow_duration }}"
+
+error_handling:
+  on_step_failure: pause_and_prompt_user
+  on_user_cancel: save_progress
+  final_notification: always
+
+notifications:
+  on_success:
+    - channel: cli
+      template: "🎉 Inbox Zero! Processed {{ output.total_processed }} emails in {{ output.time_elapsed_seconds / 60 }} minutes"
+
+metrics:
+  track_execution_time: true
+  track_completion_rate: true
+  track_user_actions: true

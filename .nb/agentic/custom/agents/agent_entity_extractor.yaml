@@ -1,0 +1,155 @@
+agent_id: agent_entity_extractor
+agent_name: Email Entity Extractor
+version: 1.0.0
+extension: email_triage
+model_tier: tier_a
+description: Extract structured entities (tasks, events, contacts, receipts) from emails
+
+capabilities:
+  - task_extraction
+  - event_parsing
+  - contact_extraction
+  - receipt_parsing
+  - calendar_invite_processing
+
+tools:
+  - extract_tasks
+  - extract_events
+  - extract_contacts
+  - extract_receipt
+  - parse_ics_attachment
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.0
+  max_tokens: 4096
+  response_format: json
+
+system_prompt: |
+  You are the Entity Extractor for Personal OS Email Extension. Your role is to extract structured data from emails.
+
+  **TASK EXTRACTION**:
+  Look for action items, to-dos, or requests. Format:
+  {
+    "tasks": [
+      {
+        "title": "Review PR #123",
+        "description": "Full context from email",
+        "due_date": "2024-10-10" or null,
+        "priority": 1-4 (1=urgent, 4=low)
+      }
+    ]
+  }
+
+  **EVENT EXTRACTION**:
+  Look for meeting proposals, scheduled calls, or time-specific events. Format:
+  {
+    "events": [
+      {
+        "title": "Q4 Planning Meeting",
+        "start": "2024-10-10T14:00:00Z",
+        "end": "2024-10-10T15:00:00Z",
+        "location": "Zoom link or physical address",
+        "attendees": ["email@example.com"]
+      }
+    ]
+  }
+
+  **CONTACT EXTRACTION**:
+  Extract from email signatures. Format:
+  {
+    "contacts": [
+      {
+        "name": "John Smith",
+        "email": "john@example.com",
+        "title": "Senior Engineer",
+        "organization": "Acme Corp",
+        "phone": "+1-555-0100"
+      }
+    ]
+  }
+
+  **RECEIPT EXTRACTION**:
+  Extract purchase details. Format:
+  {
+    "vendor": "Stripe",
+    "amount_cents": 2900,
+    "currency": "USD",
+    "date": "2024-10-04",
+    "items": [{"description": "GitHub Copilot", "amount_cents": 2900}],
+    "payment_method_last4": "4242"
+  }
+
+  GUIDELINES:
+  - Be conservative: only extract high-confidence entities
+  - Preserve original context in description fields
+  - Infer reasonable defaults (e.g., 1-hour meeting duration if not specified)
+  - Return empty arrays if no entities found
+
+tool_schemas:
+  extract_tasks:
+    input:
+      email_id: string
+      subject: string
+      body: string
+      from_email: string
+    output:
+      type: array
+      items:
+        type: object
+        properties:
+          title: string
+          description: string
+          due_date: string (nullable)
+          priority: integer
+
+  extract_events:
+    input:
+      email_id: string
+      subject: string
+      body: string
+      has_ics_attachment: boolean
+    output:
+      type: array
+      items:
+        type: object
+        properties:
+          title: string
+          start: string (ISO 8601)
+          end: string (ISO 8601)
+          location: string
+          attendees: array
+
+capability_token:
+  permissions:
+    - emails:read
+    - projects:create_task
+    - activities:create_event
+    - interactions:create_contact
+    - purchases:log_expense
+  restrictions:
+    max_tasks_per_email: 10
+    max_events_per_email: 5
+
+workflow_integrations:
+  - wf_email_sync
+  - wf_inbox_zero
+
+metrics:
+  success_criteria:
+    - task_extraction_precision > 0.80
+    - event_extraction_recall > 0.85
+    - contact_extraction_accuracy > 0.90
+  performance_targets:
+    extraction_time_per_email_ms: 1000
+
+error_handling:
+  retry_policy:
+    max_attempts: 1
+  fallback_behavior:
+    on_structured_output_failure: return_empty_arrays
+
+logging:
+  log_level: info
+  audit_trail: true

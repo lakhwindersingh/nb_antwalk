@@ -1,0 +1,55 @@
+plan_id: extension_voice_interface
+plan_name: Voice Interface & Dictation System
+version: 1.0.0
+capability_rating: Extension Specialist (E-VOICE-01 to E-VOICE-06)
+plan_type: layerable_extension_plan
+status: specification
+parent_plan: .nb/plan/personal_os/concise.md
+dependencies:
+  - domain_personal_os (>= 1.0.0)
+  - pos_thoughts (voice capture)
+  - pos_activities (voice commands)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Quick overview and use cases
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Layerable extension specification
+  detailed:
+    path: detailed.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Implementation blueprint with audio pipeline
+key_capabilities:
+  - E-VOICE-01: Local Speech-to-Text (Whisper)
+  - E-VOICE-02: Wake Word Detection ("Hey Kiro")
+  - E-VOICE-03: Voice Command Parsing & Intent Recognition
+  - E-VOICE-04: Voice Thought Capture & Journaling
+  - E-VOICE-05: Natural Language Query Interface
+  - E-VOICE-06: Text-to-Speech Response (Optional)
+integration_points:
+  pillars:
+    - thoughts: Voice thought capture, voice journaling
+    - activities: Voice habit logging, voice time tracking
+    - projects: Voice task creation
+    - workflows: Voice-triggered routines
+implementation_phases:
+  phase_1: Whisper integration and basic transcription
+  phase_2: Wake word detection and voice activation
+  phase_3: Intent recognition and command routing
+  phase_4: Voice thought capture workflow
+  phase_5: Continuous listening mode (Raspberry Pi daemon)
+success_metrics:
+  transcription_wer: "< 0.10"  # Word Error Rate
+  wake_word_false_positive_rate: "< 0.01 per hour"
+  command_recognition_accuracy: "> 0.90"
+  voice_capture_latency: "< 2 seconds"
+related_contracts:
+  - .nb/context/contracts/voice_interface_wire_contracts.yaml
+related_rules:
+  - .nb/context/rules/voice_privacy_rules.md

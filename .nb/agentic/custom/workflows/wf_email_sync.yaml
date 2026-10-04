@@ -1,0 +1,175 @@
+workflow_id: wf_email_sync
+workflow_name: Email Sync & Classification Pipeline
+version: 1.0.0
+description: Fetch, classify, and extract entities from new emails
+
+schedule:
+  cron: "*/15 * * * *"  # Every 15 minutes
+  timezone: local
+  enabled: true
+
+trigger_conditions:
+  - type: scheduled
+  - type: manual_invoke
+  - type: agent_request
+
+input_parameters:
+  account_id:
+    type: string
+    required: false
+    description: Specific account to sync (all if not specified)
+  since:
+    type: string
+    default: last_sync
+    description: Fetch emails since this timestamp
+
+steps:
+  - step_id: fetch_emails
+    name: Fetch New Emails from Account
+    action: email_fetch
+    input:
+      account_id: "{{ input.account_id }}"
+      since: "{{ input.since }}"
+    output_variable: fetched_emails
+    timeout_seconds: 30
+
+  - step_id: classify_batch
+    name: Classify All Fetched Emails
+    agent: agent_inbox_triager
+    tool: batch_classify_emails
+    input:
+      emails: "{{ fetched_emails }}"
+    output_variable: classifications
+    timeout_seconds: 60
+    depends_on:
+      - fetch_emails
+
+  - step_id: filter_action_required
+    name: Filter Action Required Emails
+    action: filter
+    input:
+      items: "{{ classifications }}"
+      condition: "category == 'action_required'"
+    output_variable: action_emails
+    depends_on:
+      - classify_batch
+
+  - step_id: extract_entities_from_action_emails
+    name: Extract Entities from Action Required
+    agent: agent_entity_extractor
+    action: batch_extract
+    input:
+      emails: "{{ action_emails }}"
+    output_variable: extracted_entities
+    timeout_seconds: 120
+    depends_on:
+      - filter_action_required
+
+  - step_id: create_tasks
+    name: Create Project Tasks from Extracted
+    action: batch_create
+    input:
+      entity_type: task
+      entities: "{{ extracted_entities.tasks }}"
+      target_pillar: projects
+    output_variable: created_tasks
+    depends_on:
+      - extract_entities_from_action_emails
+
+  - step_id: create_events
+    name: Create Calendar Events
+    action: batch_create
+    input:
+      entity_type: event
+      entities: "{{ extracted_entities.events }}"
+      target_pillar: activities
+    output_variable: created_events
+    depends_on:
+      - extract_entities_from_action_emails
+
+  - step_id: filter_receipts
+    name: Filter Receipt Emails
+    action: filter
+    input:
+      items: "{{ classifications }}"
+      condition: "category == 'receipt'"
+    output_variable: receipt_emails
+    depends_on:
+      - classify_batch
+
+  - step_id: extract_receipts
+    name: Extract Receipt Data
+    agent: agent_entity_extractor
+    action: batch_extract_receipts
+    input:
+      emails: "{{ receipt_emails }}"
+    output_variable: extracted_receipts
+    timeout_seconds: 60
+    depends_on:
+      - filter_receipts
+
+  - step_id: log_expenses
+    name: Log Expenses to Purchases
+    action: batch_create
+    input:
+      entity_type: receipt
+      entities: "{{ extracted_receipts }}"
+      target_pillar: purchases
+    output_variable: logged_expenses
+    depends_on:
+      - extract_receipts
+
+  - step_id: update_sync_state
+    name: Update Last Sync Timestamp
+    action: update_sync_state
+    input:
+      account_id: "{{ input.account_id }}"
+      last_sync: "{{ now }}"
+      last_message_id: "{{ fetched_emails[-1].message_id }}"
+    depends_on:
+      - classify_batch
+
+  - step_id: notify_user
+    name: Send Sync Summary Notification
+    action: notify
+    input:
+      channel: cli
+      message: |
+        📧 Email sync complete
+
+        Fetched: {{ fetched_emails | count }}
+        Action Required: {{ action_emails | count }}
+        Tasks Created: {{ created_tasks | count }}
+        Events Created: {{ created_events | count }}
+        Receipts Logged: {{ logged_expenses | count }}
+      priority: low
+    depends_on:
+      - update_sync_state
+
+output:
+  fetched_count: "{{ fetched_emails | count }}"
+  action_required_count: "{{ action_emails | count }}"
+  tasks_created: "{{ created_tasks | count }}"
+  events_created: "{{ created_events | count }}"
+  receipts_logged: "{{ logged_expenses | count }}"
+
+error_handling:
+  on_step_failure: continue_with_partial_results
+  on_timeout: save_progress_and_retry_later
+  final_notification: on_error_only
+
+notifications:
+  on_failure:
+    - channel: cli
+      template: "⚠️ Email sync failed: {{ error.message }}"
+
+metrics:
+  track_execution_time: true
+  track_success_rate: true
+  alert_on_consecutive_failures: 3
+
+parallel_execution:
+  create_tasks:
+    can_run_parallel_with: [create_events]
+  extract_receipts:
+    can_run_parallel_with: [extract_entities_from_action_emails]

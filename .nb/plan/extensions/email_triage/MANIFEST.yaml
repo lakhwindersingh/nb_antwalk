@@ -1,0 +1,60 @@
+plan_id: extension_email_triage
+plan_name: AI-Powered Email Triage & Smart Inbox
+version: 1.0.0
+capability_rating: Extension Specialist (E-EMAIL-01 to E-EMAIL-08)
+plan_type: layerable_extension_plan
+status: specification
+parent_plan: .nb/plan/personal_os/concise.md
+dependencies:
+  - domain_personal_os (>= 1.0.0)
+  - pos_interactions (CRM integration)
+  - pos_projects (task extraction)
+  - pos_vault (email credentials)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Quick overview and value proposition
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Layerable extension specification
+  detailed:
+    path: detailed.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Implementation blueprint and integration points
+key_capabilities:
+  - E-EMAIL-01: IMAP/Gmail API Email Fetching & Sync
+  - E-EMAIL-02: Intelligent Category Classification (Action Required, FYI, Newsletter, Receipt, Spam)
+  - E-EMAIL-03: Email Summarization & Key Point Extraction
+  - E-EMAIL-04: Action Item & Task Extraction
+  - E-EMAIL-05: Meeting Invite Auto-Parsing to Calendar
+  - E-EMAIL-06: Contact Auto-Extraction to CRM
+  - E-EMAIL-07: Receipt Detection & Financial Ingestion
+  - E-EMAIL-08: Smart Reply Draft Generation
+integration_points:
+  pillars:
+    - interactions: Contact extraction, conversation threading
+    - projects: Task creation from action items
+    - purchases: Receipt parsing and expense logging
+    - activities: Calendar event creation from invites
+    - thoughts: Email insights and follow-up reminders
+    - vault: Email credential storage (OAuth tokens, IMAP passwords)
+implementation_phases:
+  phase_1: IMAP/Gmail API client and email sync engine
+  phase_2: LLM-powered classification and summarization pipeline
+  phase_3: Entity extraction (tasks, contacts, events, receipts)
+  phase_4: Smart reply generation and inbox zero workflow
+  phase_5: Advanced features (thread intelligence, SLA tracking, VIP prioritization)
+success_metrics:
+  classification_accuracy: "> 0.90"
+  summarization_relevance: "> 0.85"
+  task_extraction_precision: "> 0.80"
+  time_to_inbox_zero_reduction: "50% reduction vs manual triage"
+related_contracts:
+  - .nb/context/contracts/email_triage_wire_contracts.yaml
+related_rules:
+  - .nb/context/rules/email_privacy_rules.md

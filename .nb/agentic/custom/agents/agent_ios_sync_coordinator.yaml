@@ -1,0 +1,467 @@
+---
+agent_id: "agent_ios_sync_coordinator"
+name: "iOS Sync Coordinator"
+version: "1.0.0"
+status: "specification"
+created: "2024-10-04"
+
+metadata:
+  description: "Orchestrates bidirectional sync between iOS/macOS apps and Personal OS backend"
+  responsibility: "Manages background sync, conflict resolution, and offline queue"
+  model_tier: "tier_b"
+  model_recommendation: "claude-3-5-haiku / gemini-flash"
+  execution_pattern: "reactive"
+  concurrency: "actor-isolated"
+
+capabilities:
+  - id: "SYNC-01"
+    name: "Bidirectional Sync"
+    description: "Upload local changes and download remote changes"
+  - id: "SYNC-02"
+    name: "Conflict Resolution"
+    description: "Detect and resolve sync conflicts (last-write-wins or manual)"
+  - id: "SYNC-03"
+    name: "Offline Queue Management"
+    description: "Queue operations when offline, execute when online"
+  - id: "SYNC-04"
+    name: "Batch Processing"
+    description: "Group operations for efficient network usage"
+  - id: "SYNC-05"
+    name: "Incremental Sync"
+    description: "Only sync changes since last sync timestamp"
+
+triggers:
+  - type: "background_task"
+    schedule: "every 15 minutes (BGTaskScheduler)"
+    identifier: "com.kiro.background-sync"
+  - type: "app_lifecycle"
+    event: "app_did_become_active"
+    description: "Sync when app returns to foreground"
+  - type: "manual"
+    event: "user_pull_to_refresh"
+    description: "User-initiated sync"
+  - type: "significant_change"
+    event: "local_entity_created"
+    description: "Opportunistic sync after local changes"
+
+tools:
+  - id: "fetch_pending_changes"
+    description: "Get local entities not yet synced to backend"
+    input_schema:
+      type: "object"
+      required: ["device_id"]
+      properties:
+        device_id:
+          type: "string"
+          description: "Unique device identifier"
+        entity_types:
+          type: "array"
+          items:
+            enum: ["thought", "task", "habit_log", "file"]
+          description: "Filter by entity type"
+        limit:
+          type: "integer"
+          default: 100
+          description: "Max entities to fetch"
+    output_schema:
+      type: "object"
+      properties:
+        thoughts:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              id: { type: "string", format: "uuid" }
+              content: { type: "string" }
+              tags: { type: "array", items: { type: "string" } }
+              created_at: { type: "string", format: "date-time" }
+              local_version: { type: "integer" }
+        tasks:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              id: { type: "string", format: "uuid" }
+              title: { type: "string" }
+              project_id: { type: "string" }
+              priority: { type: "string", enum: ["low", "medium", "high"] }
+              status: { type: "string" }
+              created_at: { type: "string", format: "date-time" }
+        habit_logs:
+          type: "array"
+          items:
+            type: "object"
+        total_pending: { type: "integer" }
+
+  - id: "push_to_backend"
+    description: "Upload local changes to Personal OS backend"
+    input_schema:
+      type: "object"
+      required: ["changes", "device_id"]
+      properties:
+        changes:
+          type: "object"
+          properties:
+            thoughts: { type: "array" }
+            tasks: { type: "array" }
+            habit_logs: { type: "array" }
+        device_id:
+          type: "string"
+        batch_size:
+          type: "integer"
+          default: 50
+          description: "Max entities per batch"
+    output_schema:
+      type: "object"
+      properties:
+        synced_ids:
+          type: "array"
+          items: { type: "string" }
+          description: "Successfully synced entity IDs"
+        conflicts:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              entity_id: { type: "string" }
+              entity_type: { type: "string" }
+              local_version: { type: "integer" }
+              remote_version: { type: "integer" }
+              conflict_type:
+                type: "string"
+                enum: ["concurrent_edit", "deleted_on_remote", "created_duplicate"]
+        failed_ids:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              entity_id: { type: "string" }
+              error: { type: "string" }
+        stats:
+          type: "object"
+          properties:
+            uploaded_count: { type: "integer" }
+            bytes_sent: { type: "integer" }
+            duration_ms: { type: "integer" }
+
+  - id: "pull_from_backend"
+    description: "Download remote changes since last sync"
+    input_schema:
+      type: "object"
+      required: ["device_id"]
+      properties:
+        device_id:
+          type: "string"
+        last_sync_timestamp:
+          type: "string"
+          format: "date-time"
+          description: "ISO8601 timestamp of last successful sync"
+        entity_types:
+          type: "array"
+          items:
+            enum: ["thought", "task", "habit", "file", "interaction"]
+    output_schema:
+      type: "object"
+      properties:
+        remote_changes:
+          type: "object"
+          properties:
+            created:
+              type: "object"
+              properties:
+                thoughts: { type: "array" }
+                tasks: { type: "array" }
+                habits: { type: "array" }
+            updated:
+              type: "object"
+              properties:
+                thoughts: { type: "array" }
+                tasks: { type: "array" }
+            deleted:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  entity_id: { type: "string" }
+                  entity_type: { type: "string" }
+                  deleted_at: { type: "string", format: "date-time" }
+        new_sync_timestamp:
+          type: "string"
+          format: "date-time"
+        stats:
+          type: "object"
+          properties:
+            downloaded_count: { type: "integer" }
+            bytes_received: { type: "integer" }
+            duration_ms: { type: "integer" }
+
+  - id: "resolve_conflict"
+    description: "Resolve sync conflict between local and remote versions"
+    input_schema:
+      type: "object"
+      required: ["conflict", "resolution_strategy"]
+      properties:
+        conflict:
+          type: "object"
+          properties:
+            entity_id: { type: "string" }
+            entity_type: { type: "string" }
+            local_entity: { type: "object" }
+            remote_entity: { type: "object" }
+            local_modified_at: { type: "string", format: "date-time" }
+            remote_modified_at: { type: "string", format: "date-time" }
+        resolution_strategy:
+          type: "string"
+          enum:
+            - "last_write_wins"
+            - "local_wins"
+            - "remote_wins"
+            - "manual_merge"
+            - "create_duplicate"
+          default: "last_write_wins"
+        manual_merged_entity:
+          type: "object"
+          description: "Required when strategy is 'manual_merge'"
+    output_schema:
+      type: "object"
+      properties:
+        resolved_entity:
+          type: "object"
+          description: "The entity after conflict resolution"
+        resolution_action:
+          type: "string"
+          enum: ["updated_local", "updated_remote", "created_duplicate", "no_change"]
+        metadata:
+          type: "object"
+          properties:
+            strategy_used: { type: "string" }
+            winning_version: { type: "string", enum: ["local", "remote", "merged"] }
+            conflict_timestamp: { type: "string", format: "date-time" }
+
+  - id: "mark_synced"
+    description: "Update local entity sync status after successful upload"
+    input_schema:
+      type: "object"
+      required: ["entity_ids", "sync_timestamp"]
+      properties:
+        entity_ids:
+          type: "array"
+          items: { type: "string" }
+        sync_timestamp:
+          type: "string"
+          format: "date-time"
+    output_schema:
+      type: "object"
+      properties:
+        updated_count: { type: "integer" }
+
+  - id: "get_sync_status"
+    description: "Get current sync status and statistics"
+    input_schema:
+      type: "object"
+      properties:
+        device_id: { type: "string" }
+    output_schema:
+      type: "object"
+      properties:
+        is_syncing: { type: "boolean" }
+        last_sync_at:
+          type: "string"
+          format: "date-time"
+        next_scheduled_sync_at:
+          type: "string"
+          format: "date-time"
+        pending_upload_count: { type: "integer" }
+        pending_download_count: { type: "integer" }
+        conflicts_count: { type: "integer" }
+        total_data_transferred_bytes: { type: "integer" }
+        sync_history:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              timestamp: { type: "string", format: "date-time" }
+              direction: { type: "string", enum: ["upload", "download", "bidirectional"] }
+              entities_synced: { type: "integer" }
+              duration_ms: { type: "integer" }
+              success: { type: "boolean" }
+
+execution_logic: |
+  ## Sync Workflow
+
+  ### 1. Background Sync (Every 15 Minutes)
+
+  ```
+  1. Check network availability
+     └─ If offline: abort, schedule retry
+
+  2. Check Wi-Fi only setting
+     └─ If cellular + wifi_only: abort
+
+  3. Fetch pending local changes
+     └─ Get all entities with sync_status = "pending"
+
+  4. Push to backend (batch size: 50)
+     └─ For each batch:
+        ├─ Upload entities
+        ├─ Handle conflicts
+        └─ Mark synced locally
+
+  5. Pull from backend
+     └─ Get remote changes since last_sync_timestamp
+
+  6. Apply remote changes locally
+     └─ For each remote change:
+        ├─ If created: insert into Core Data
+        ├─ If updated: merge with local
+        ├─ If deleted: delete local (if not modified locally)
+        └─ Handle conflicts
+
+  7. Update sync timestamp
+     └─ Store new sync_timestamp in UserDefaults
+
+  8. Post notification
+     └─ NotificationCenter.post("SyncCompleted")
+  ```
+
+  ### 2. Conflict Resolution Strategy
+
+  ```
+  For each conflict:
+
+  1. Detect conflict type:
+     ├─ Concurrent Edit: Both local and remote modified since last sync
+     ├─ Deleted on Remote: Entity deleted remotely but modified locally
+     └─ Created Duplicate: Same entity created on multiple devices
+
+  2. Apply resolution strategy (default: last_write_wins):
+
+     last_write_wins:
+       if local.modified_at > remote.modified_at:
+         keep local, upload to backend
+       else:
+         discard local, apply remote
+
+     local_wins:
+       keep local, force upload to backend
+
+     remote_wins:
+       discard local, apply remote
+
+     create_duplicate:
+       rename local entity (append " (iPhone)" suffix)
+       create as new entity on backend
+
+  3. Log conflict resolution:
+     ├─ Store in conflict_resolution_log table
+     └─ Show in Settings > Sync History
+  ```
+
+  ### 3. Offline Queue Management
+
+  ```
+  When offline:
+
+  1. Queue operations locally
+     └─ Store in offline_queue table with:
+        ├─ operation_type: "create" | "update" | "delete"
+        ├─ entity_type
+        ├─ entity_id
+        ├─ payload: JSON
+        └─ queued_at: timestamp
+
+  2. When online again:
+     └─ Process queue in FIFO order
+        ├─ Execute each operation
+        ├─ Remove from queue if successful
+        └─ Retry with exponential backoff if failed
+  ```
+
+error_handling:
+  network_failure:
+    strategy: "exponential_backoff"
+    initial_delay: 5  # seconds
+    max_retries: 3
+    fallback: "continue_with_cached_data"
+
+  authentication_failure:
+    strategy: "prompt_reauth"
+    action: "show_login_sheet"
+
+  conflict_unresolved:
+    strategy: "defer_to_user"
+    action: "show_conflict_resolution_ui"
+
+  rate_limit_exceeded:
+    strategy: "exponential_backoff"
+    initial_delay: 30
+    max_retries: 5
+
+  timeout:
+    max_duration: 30  # seconds
+    action: "abort_and_reschedule"
+
+performance_targets:
+  background_sync_duration:
+    target: 15000  # ms (15 seconds)
+    max: 30000  # ms (BGTask limit)
+
+  entities_per_second:
+    target: 20
+    min: 10
+
+  conflict_resolution_time:
+    target: 100  # ms per conflict
+    max: 500
+
+  memory_usage:
+    max_heap: "50 MB"
+    max_batch_size: 100  # entities
+
+integration_points:
+  - pillar: "thoughts"
+    operations: ["create", "update", "delete", "sync"]
+  - pillar: "projects"
+    operations: ["create_task", "update_task", "delete_task", "sync"]
+  - pillar: "activities"
+    operations: ["log_habit", "sync"]
+  - api_endpoint: "http://localhost:8080/api/v1/sync"
+    authentication: "Bearer token (from Keychain)"
+  - local_storage: "Core Data + SwiftData"
+
+observability:
+  logging:
+    level: "info"
+    destinations: ["os_log", "file"]
+
+  metrics:
+    - name: "sync_duration_ms"
+      type: "histogram"
+    - name: "entities_synced_total"
+      type: "counter"
+    - name: "conflicts_detected_total"
+      type: "counter"
+    - name: "sync_failures_total"
+      type: "counter"
+
+  alerts:
+    - condition: "sync_failures > 3 in 1 hour"
+      action: "show_user_notification"
+    - condition: "conflicts_detected > 10"
+      action: "prompt_manual_review"
+
+testing:
+  unit_tests:
+    - "test_fetch_pending_changes_returns_unsynced_entities"
+    - "test_push_to_backend_handles_batch_size"
+    - "test_conflict_resolution_last_write_wins"
+    - "test_offline_queue_processes_when_online"
+
+  integration_tests:
+    - "test_full_sync_cycle_with_backend"
+    - "test_concurrent_sync_from_multiple_devices"
+    - "test_sync_survives_app_kill"
+
+  performance_tests:
+    - "test_sync_1000_entities_under_30_seconds"
+    - "test_conflict_resolution_100_conflicts_under_10_seconds"

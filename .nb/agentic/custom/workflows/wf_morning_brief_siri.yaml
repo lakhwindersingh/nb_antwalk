@@ -1,0 +1,363 @@
+---
+workflow_id: "wf_morning_brief_siri"
+name: "Morning Brief via Siri Announcement"
+version: "1.0.0"
+status: "specification"
+created: "2024-10-04"
+
+metadata:
+  description: "Daily morning brief delivered through Siri Announce Notifications"
+  category: "automation"
+  priority: "high"
+  estimated_duration: "3-5 seconds"
+
+trigger:
+  type: "scheduled"
+  schedule: "0 7 * * 1-5"  # 7:00 AM weekdays (cron format)
+  timezone: "user_local"
+  conditions:
+    - "user has enabled morning_brief notification"
+    - "user is not in Do Not Disturb mode"
+    - "last execution was > 20 hours ago"
+
+inputs:
+  date:
+    type: "date"
+    default: "today"
+    description: "Date for agenda retrieval"
+
+outputs:
+  notification_sent:
+    type: "boolean"
+    description: "Whether notification was successfully sent"
+  briefing_text:
+    type: "string"
+    description: "Generated briefing text"
+  stats:
+    type: "object"
+    properties:
+      meeting_count: { type: "integer" }
+      task_count: { type: "integer" }
+      overdue_count: { type: "integer" }
+
+steps:
+  # Step 1: Fetch Today's Agenda
+  - id: "fetch_agenda"
+    name: "Fetch Daily Agenda"
+    agent: "agent_activity_scheduler"
+    tool: "get_daily_agenda"
+    input:
+      date: "${inputs.date}"
+      include_meetings: true
+      include_habits: true
+    output_binding: "agenda"
+    timeout: 5000  # ms
+    retry_policy:
+      max_retries: 2
+      backoff: "exponential"
+    on_error: "continue_with_empty_agenda"
+
+  # Step 2: Fetch Top Priority Tasks
+  - id: "fetch_top_tasks"
+    name: "Get Priority Tasks"
+    agent: "agent_project_orchestrator"
+    tool: "get_priority_tasks"
+    input:
+      limit: 3
+      filter:
+        status: ["todo", "in_progress"]
+        due_date_before: "${inputs.date + 7 days}"
+    output_binding: "top_tasks"
+    timeout: 5000
+    retry_policy:
+      max_retries: 2
+    on_error: "continue_with_empty_tasks"
+
+  # Step 3: Check Overdue Items
+  - id: "check_overdue"
+    name: "Count Overdue Tasks"
+    agent: "agent_project_orchestrator"
+    tool: "count_overdue_tasks"
+    input:
+      as_of_date: "${inputs.date}"
+    output_binding: "overdue_info"
+    timeout: 3000
+    on_error: "set_overdue_count_zero"
+
+  # Step 4: Check Habit Streaks
+  - id: "check_habits"
+    name: "Get Habit Summary"
+    agent: "agent_activity_scheduler"
+    tool: "get_habit_summary"
+    input:
+      date: "${inputs.date}"
+    output_binding: "habit_summary"
+    timeout: 3000
+    on_error: "continue_without_habits"
+
+  # Step 5: Check Budget Alerts
+  - id: "check_budget"
+    name: "Get Budget Status"
+    agent: "agent_finance_tracker"
+    tool: "get_budget_summary"
+    input:
+      period: "current_month"
+    output_binding: "budget_info"
+    timeout: 3000
+    on_error: "skip_budget_info"
+
+  # Step 6: Format Announcement Text
+  - id: "format_announcement"
+    name: "Generate Briefing Text"
+    agent: "agent_ios_sync_coordinator"
+    tool: "format_notification_text"
+    input:
+      template: "morning_brief"
+      data:
+        meeting_count: "${fetch_agenda.meetings.length}"
+        top_task: "${fetch_top_tasks[0].title || 'None'}"
+        top_task_project: "${fetch_top_tasks[0].project_name || ''}"
+        overdue_count: "${check_overdue.count}"
+        habit_streak_info: "${check_habits.longest_streak > 0 ? check_habits.longest_streak + ' day streak on ' + check_habits.top_habit_name : ''}"
+        budget_alert: "${check_budget.categories_over_threshold.length > 0 ? check_budget.categories_over_threshold[0] : ''}"
+    output_binding: "briefing"
+    timeout: 2000
+
+  # Step 7: Send Announcement Notification
+  - id: "send_notification"
+    name: "Deliver Morning Brief"
+    action: "send_ios_notification"
+    input:
+      notification_type: "morning_brief"
+      title: "Your Kiro Daily Brief"
+      body: "${format_announcement.text}"
+      category: "MORNING_BRIEF"
+      interruption_level: "timeSensitive"
+      announce: true
+      relevance_score: 1.0
+      custom_data:
+        meeting_count: "${fetch_agenda.meetings.length}"
+        task_count: "${fetch_top_tasks.length}"
+        overdue_count: "${check_overdue.count}"
+    output_binding: "notification_result"
+    timeout: 2000
+
+  # Step 8: Log Execution
+  - id: "log_execution"
+    name: "Record Workflow Execution"
+    action: "log_workflow_run"
+    input:
+      workflow_id: "wf_morning_brief_siri"
+      status: "success"
+      duration_ms: "${workflow.elapsed_time}"
+      metadata:
+        briefing_text: "${briefing.text}"
+        notification_delivered: "${notification_result.success}"
+        stats: "${outputs.stats}"
+
+dag_visualization: |
+  fetch_agenda ─┐
+                ├─> format_announcement ─> send_notification ─> log_execution
+  fetch_top_tasks ─┤
+  check_overdue ───┤
+  check_habits ────┤
+  check_budget ────┘
+
+execution_graph:
+  parallel_groups:
+    - group_id: "data_collection"
+      parallel: true
+      steps: ["fetch_agenda", "fetch_top_tasks", "check_overdue", "check_habits", "check_budget"]
+      wait_for_all: false  # Proceed when at least 3/5 complete
+      min_successful: 3
+
+    - group_id: "notification_delivery"
+      parallel: false
+      steps: ["format_announcement", "send_notification", "log_execution"]
+      depends_on: ["data_collection"]
+
+error_handling:
+  global_timeout: 30000  # 30 seconds max
+
+  step_failures:
+    fetch_agenda:
+      fallback: "empty_agenda"
+      message: "Could not load today's agenda"
+
+    fetch_top_tasks:
+      fallback: "empty_tasks"
+      message: "No priority tasks"
+
+    check_overdue:
+      fallback: "overdue_count = 0"
+
+    send_notification:
+      action: "retry_once_after_5s"
+      fallback: "log_failure_and_reschedule"
+
+  critical_failures:
+    - condition: "send_notification fails after retry"
+      action: "reschedule_for_7:05_AM"
+
+notification_templates:
+  default: |
+    Good morning! You have {meeting_count} meetings today.
+    Top priority: {top_task}.
+    {overdue_count > 0 ? overdue_count + " overdue tasks." : ""}
+    {habit_streak_info ? habit_streak_info : ""}
+    {budget_alert ? "Budget alert: " + budget_alert : ""}
+
+  minimal: |
+    Good morning! {meeting_count} meetings today. Top task: {top_task}.
+
+  detailed: |
+    Good morning! Here's your Kiro daily brief:
+
+    📅 Meetings: {meeting_count}
+
+    🎯 Top Priority: {top_task} ({top_task_project})
+
+    {overdue_count > 0 ? "⚠️ " + overdue_count + " overdue tasks" : "✅ No overdue tasks"}
+
+    {habit_streak_info ? "🔥 " + habit_streak_info : ""}
+
+    {budget_alert ? "💰 " + budget_alert : ""}
+
+  template_selection_logic: |
+    if (meeting_count + task_count + overdue_count) < 3:
+      use "minimal"
+    else if user_preference == "detailed":
+      use "detailed"
+    else:
+      use "default"
+
+personalization:
+  user_preferences:
+    - key: "morning_brief.time"
+      type: "time"
+      default: "07:00"
+      description: "Preferred time for morning brief"
+
+    - key: "morning_brief.weekdays_only"
+      type: "boolean"
+      default: true
+      description: "Only send on weekdays"
+
+    - key: "morning_brief.template"
+      type: "enum"
+      values: ["minimal", "default", "detailed"]
+      default: "default"
+
+    - key: "morning_brief.include_habits"
+      type: "boolean"
+      default: true
+
+    - key: "morning_brief.include_budget"
+      type: "boolean"
+      default: false
+
+  dynamic_content:
+    - condition: "user has upcoming meeting in next 30 minutes"
+      add: "Your first meeting '{meeting_title}' starts at {meeting_time}."
+
+    - condition: "user has birthday in contacts today"
+      add: "🎂 {contact_name}'s birthday today!"
+
+    - condition: "user completed all habits yesterday"
+      add: "Perfect day yesterday! All habits completed."
+
+performance_targets:
+  total_duration: "< 5000 ms (5 seconds)"
+
+  step_durations:
+    fetch_agenda: "< 2000 ms"
+    fetch_top_tasks: "< 2000 ms"
+    check_overdue: "< 1000 ms"
+    format_announcement: "< 500 ms"
+    send_notification: "< 1000 ms"
+
+success_criteria:
+  - "Notification delivered within 5 seconds of 7:00 AM"
+  - "Briefing text is relevant and accurate"
+  - "User engagement rate > 50% (notification opened or acted upon)"
+
+monitoring:
+  metrics:
+    - name: "morning_brief_delivery_success_rate"
+      type: "gauge"
+      target: "> 99%"
+
+    - name: "morning_brief_duration_ms"
+      type: "histogram"
+      target_p95: "< 5000 ms"
+
+    - name: "morning_brief_user_engagement_rate"
+      type: "gauge"
+      description: "% of notifications opened or acted upon"
+      target: "> 50%"
+
+  logging:
+    - level: "info"
+      message: "Morning brief workflow started"
+      fields: ["date", "trigger_time"]
+
+    - level: "info"
+      message: "Morning brief delivered"
+      fields: ["briefing_text", "notification_id", "duration_ms"]
+
+    - level: "error"
+      message: "Morning brief delivery failed"
+      fields: ["error", "retry_count"]
+
+testing:
+  test_scenarios:
+    - name: "normal_day_with_meetings"
+      mock_data:
+        meetings: [{ title: "Standup", time: "09:00" }, { title: "Planning", time: "14:00" }]
+        tasks: [{ title: "Finish PR #123", priority: "high" }]
+        overdue_count: 0
+      expected_output: "Good morning! You have 2 meetings today. Top priority: Finish PR #123."
+
+    - name: "day_with_overdue_tasks"
+      mock_data:
+        meetings: []
+        tasks: [{ title: "Review docs", priority: "medium" }]
+        overdue_count: 3
+      expected_output: "Good morning! You have 0 meetings today. Top priority: Review docs. 3 overdue tasks."
+
+    - name: "empty_schedule"
+      mock_data:
+        meetings: []
+        tasks: []
+        overdue_count: 0
+      expected_output: "Good morning! You have 0 meetings today. Top priority: None."
+
+    - name: "api_timeout_fallback"
+      mock_data:
+        fetch_agenda: { timeout: true }
+        fetch_top_tasks: { data: [{ title: "Task A" }] }
+      expected_behavior: "Continue with available data, send partial brief"
+
+integration_points:
+  - agent: "agent_activity_scheduler"
+    tools: ["get_daily_agenda", "get_habit_summary"]
+  - agent: "agent_project_orchestrator"
+    tools: ["get_priority_tasks", "count_overdue_tasks"]
+  - agent: "agent_finance_tracker"
+    tools: ["get_budget_summary"]
+  - agent: "agent_ios_sync_coordinator"
+    tools: ["format_notification_text"]
+  - system: "iOS UserNotifications Framework"
+    action: "send_announced_notification"
+
+rollout_plan:
+  phase_1:
+    description: "Beta test with opt-in users"
+    duration: "2 weeks"
+    target_users: 50
+    success_metric: "80% positive feedback"
+
+  phase_2:
+    description: "General availability"
+    enabled_by_default: false
+    onboarding_prompt: "Would you like a daily morning brief at 7:00 AM?"

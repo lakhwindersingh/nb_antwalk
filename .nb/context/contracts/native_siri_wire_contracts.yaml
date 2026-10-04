@@ -1,0 +1,588 @@
+schema_version: "1.0.0"
+domain: "native_siri_integration"
+framework: "AppIntents (iOS 16+)"
+service_endpoint: "N/A (on-device intent handling)"
+
+# ============================================================
+# CORE APP INTENTS
+# ============================================================
+
+intents:
+  # Thought Capture Intent
+  - id: "CaptureThoughtIntent"
+    display_name: "Capture Thought"
+    description: "Quickly capture a thought or idea"
+    category: "capture"
+    parameters:
+      - name: "content"
+        type: "String"
+        required: true
+        request_value_dialog: "What's on your mind?"
+        input_options: "accepts_multiline"
+      - name: "tags"
+        type: "[String]"
+        required: false
+        options_provider: "TagsOptionsProvider"
+    siri_phrases:
+      - "Capture a thought in Kiro"
+      - "Add note to Kiro"
+      - "Quick capture in Kiro"
+      - "Remember this in Kiro"
+    response:
+      success_dialog: "✅ Thought captured"
+      returns: "ThoughtID (UUID)"
+    backend_operation:
+      method: "POST"
+      endpoint: "/api/v1/thoughts"
+      body:
+        content: "{content}"
+        tags: "{tags}"
+        source: "siri"
+
+  # Query Agenda Intent
+  - id: "QueryAgendaIntent"
+    display_name: "Get My Agenda"
+    description: "View upcoming tasks and meetings"
+    category: "query"
+    parameters:
+      - name: "timeframe"
+        type: "AgendaTimeframe"
+        required: true
+        default: "today"
+        enum_values:
+          - id: "today"
+            display: "Today"
+          - id: "tomorrow"
+            display: "Tomorrow"
+          - id: "thisWeek"
+            display: "This Week"
+          - id: "nextWeek"
+            display: "Next Week"
+    siri_phrases:
+      - "Get my Kiro agenda"
+      - "What's on my Kiro schedule"
+      - "Show my Kiro day"
+      - "What's happening in Kiro today"
+    response:
+      returns: "AgendaSnapshot"
+      fields:
+        - name: "meetingCount"
+          type: "Int"
+        - name: "topTask"
+          type: "Task?"
+        - name: "overdueCount"
+          type: "Int"
+        - name: "meetings"
+          type: "[Meeting]"
+        - name: "tasks"
+          type: "[Task]"
+      spoken_summary_template: |
+        You have {meetingCount} meetings today.
+        Your top priority is: {topTask.title}.
+        {overdueCount > 0 ? "You have " + overdueCount + " overdue tasks." : ""}
+    backend_operation:
+      method: "GET"
+      endpoint: "/api/v1/activities/agenda"
+      query_params:
+        timeframe: "{timeframe}"
+
+  # Log Habit Intent
+  - id: "LogHabitIntent"
+    display_name: "Log Habit"
+    description: "Mark a habit as complete"
+    category: "action"
+    parameters:
+      - name: "habitID"
+        type: "String"
+        required: true
+        options_provider: "HabitsOptionsProvider"
+        display_as: "habit name"
+    siri_phrases:
+      - "Log habit in Kiro"
+      - "Mark habit complete in Kiro"
+      - "I did {habitName} in Kiro"
+    response:
+      success_dialog: "✅ Logged {habitName}. Streak: {streak} days 🔥"
+      returns: "HabitLogResult"
+      fields:
+        - name: "habitName"
+          type: "String"
+        - name: "streak"
+          type: "Int"
+        - name: "completedToday"
+          type: "Bool"
+    backend_operation:
+      method: "POST"
+      endpoint: "/api/v1/activities/habits/{habitID}/log"
+
+  # Create Task Intent
+  - id: "CreateTaskIntent"
+    display_name: "Create Task"
+    description: "Create a new task"
+    category: "action"
+    parameters:
+      - name: "title"
+        type: "String"
+        required: true
+        request_value_dialog: "What's the task?"
+      - name: "projectID"
+        type: "String"
+        required: false
+        options_provider: "ProjectsOptionsProvider"
+        display_as: "project name"
+      - name: "priority"
+        type: "TaskPriority"
+        required: false
+        default: "medium"
+        enum_values:
+          - id: "low"
+            display: "Low"
+            symbol: "🟢"
+          - id: "medium"
+            display: "Medium"
+            symbol: "🟡"
+          - id: "high"
+            display: "High"
+            symbol: "🔴"
+      - name: "dueDate"
+        type: "Date"
+        required: false
+    siri_phrases:
+      - "Create task in Kiro"
+      - "Add task to Kiro"
+      - "New task in Kiro"
+    response:
+      success_dialog: "✅ Created task: {title}"
+      returns: "Task"
+    backend_operation:
+      method: "POST"
+      endpoint: "/api/v1/projects/tasks"
+      body:
+        title: "{title}"
+        project_id: "{projectID}"
+        priority: "{priority}"
+        due_date: "{dueDate}"
+        source: "siri"
+
+  # Search Intent
+  - id: "SearchKiroIntent"
+    display_name: "Search Kiro"
+    description: "Search thoughts, tasks, and files"
+    category: "query"
+    parameters:
+      - name: "query"
+        type: "String"
+        required: true
+        request_value_dialog: "What are you looking for?"
+      - name: "scope"
+        type: "SearchScope"
+        required: false
+        default: "all"
+        enum_values:
+          - id: "all"
+            display: "Everything"
+          - id: "thoughts"
+            display: "Thoughts Only"
+          - id: "tasks"
+            display: "Tasks Only"
+          - id: "files"
+            display: "Files Only"
+    siri_phrases:
+      - "Search Kiro for {query}"
+      - "Find {query} in Kiro"
+    response:
+      returns: "SearchResults"
+      max_results: 10
+    backend_operation:
+      method: "GET"
+      endpoint: "/api/v1/search"
+      query_params:
+        q: "{query}"
+        scope: "{scope}"
+        limit: 10
+
+# ============================================================
+# DYNAMIC OPTIONS PROVIDERS
+# ============================================================
+
+options_providers:
+  - id: "TagsOptionsProvider"
+    description: "Provides list of existing tags"
+    backend_endpoint: "/api/v1/thoughts/tags"
+    cache_duration: 3600  # 1 hour
+    result_mapping:
+      display: "{name}"
+      value: "{name}"
+
+  - id: "HabitsOptionsProvider"
+    description: "Provides list of user's habits"
+    backend_endpoint: "/api/v1/activities/habits"
+    cache_duration: 86400  # 24 hours
+    result_mapping:
+      display: "{name}"
+      value: "{id}"
+      subtitle: "Current streak: {streak} days"
+
+  - id: "ProjectsOptionsProvider"
+    description: "Provides list of active projects"
+    backend_endpoint: "/api/v1/projects?status=active"
+    cache_duration: 3600
+    result_mapping:
+      display: "{name}"
+      value: "{id}"
+      subtitle: "{task_count} tasks"
+
+# ============================================================
+# NOTIFICATION CONTRACTS
+# ============================================================
+
+notifications:
+  # Morning Brief Notification
+  - id: "morning_brief"
+    title: "Your Kiro Daily Brief"
+    body_template: |
+      Good morning! You have {meetingCount} meetings today.
+      Top priority: {topTask.title}.
+      {overdueCount > 0 ? overdueCount + " overdue tasks." : ""}
+    category: "MORNING_BRIEF"
+    interruption_level: "timeSensitive"
+    sound: "default"
+    announce: true
+    relevance_score: 1.0
+    schedule:
+      type: "daily"
+      time: "07:00"
+      days: ["mon", "tue", "wed", "thu", "fri"]
+    payload_schema:
+      meetingCount: "Int"
+      topTask:
+        title: "String"
+        project: "String"
+      overdueCount: "Int"
+
+  # Task Reminder Notification
+  - id: "task_reminder"
+    title: "Task Starting Soon"
+    body_template: "{taskTitle} is scheduled in 15 minutes"
+    category: "TASK_REMINDER"
+    interruption_level: "active"
+    sound: "default"
+    announce: true
+    relevance_score: 0.8
+    schedule:
+      type: "dynamic"
+      offset: "-15 minutes from task due_time"
+    actions:
+      - id: "complete"
+        title: "Mark Complete"
+        icon: "checkmark.circle"
+      - id: "snooze"
+        title: "Snooze 10 min"
+        icon: "clock"
+    payload_schema:
+      taskID: "UUID"
+      taskTitle: "String"
+      projectName: "String"
+
+  # Habit Reminder Notification
+  - id: "habit_reminder"
+    title: "Habit Check-In"
+    body_template: "Time to log your {habitName}"
+    category: "HABIT_REMINDER"
+    interruption_level: "passive"
+    sound: "subtle.caf"
+    announce: false
+    relevance_score: 0.6
+    schedule:
+      type: "user_defined"
+    actions:
+      - id: "log_now"
+        title: "Log Now"
+        icon: "checkmark.circle.fill"
+        foreground: true
+    payload_schema:
+      habitID: "UUID"
+      habitName: "String"
+      streak: "Int"
+
+  # Budget Alert Notification
+  - id: "budget_alert"
+    title: "Budget Alert"
+    body_template: "You've spent ${spent} of ${limit} on {category} this month"
+    category: "BUDGET_ALERT"
+    interruption_level: "timeSensitive"
+    sound: "critical.caf"
+    announce: true
+    relevance_score: 0.9
+    schedule:
+      type: "threshold"
+      trigger: "spending >= 80% of budget"
+    payload_schema:
+      category: "String"
+      spent: "Double"
+      limit: "Double"
+      percentage: "Int"
+
+# ============================================================
+# WIDGET TIMELINE CONTRACTS
+# ============================================================
+
+widgets:
+  # Habit Streak Circular Widget
+  - id: "HabitStreakCircular"
+    family: "accessoryCircular"
+    display_name: "Habit Streak"
+    description: "Track daily habit completion"
+    supported_families:
+      - "accessoryCircular"
+      - "accessoryInline"
+      - "accessoryRectangular"
+    data_source:
+      endpoint: "/api/v1/activities/habits/summary"
+      refresh_policy: "hourly"
+      fallback_strategy: "use_cached"
+    timeline_entries:
+      - date: "now"
+        content:
+          circular:
+            type: "gauge"
+            value: "{completedToday}"
+            total: "{totalHabits}"
+            center_text: "{completedToday}"
+          inline:
+            text: "🔥 {longestStreak} day streak"
+          rectangular:
+            header: "Habits Today"
+            main_text: "{completedToday}/{totalHabits}"
+            trailing: "🔥 {longestStreak}"
+    data_schema:
+      completedToday: "Int"
+      totalHabits: "Int"
+      longestStreak: "Int"
+      habits: "[Habit]"
+
+  # Next Task Inline Widget
+  - id: "NextTaskInline"
+    family: "accessoryInline"
+    display_name: "Next Task"
+    description: "Your upcoming task"
+    data_source:
+      endpoint: "/api/v1/projects/tasks/next"
+      refresh_policy: "every_15_minutes"
+    timeline_entries:
+      - date: "now"
+        content:
+          inline:
+            text: "⏰ {title} at {dueTime}"
+    data_schema:
+      taskID: "UUID"
+      title: "String"
+      dueTime: "String"
+      priority: "String"
+
+  # Daily Summary Medium Widget
+  - id: "DailySummaryMedium"
+    family: "systemMedium"
+    display_name: "Daily Summary"
+    description: "Overview of your day"
+    data_source:
+      endpoint: "/api/v1/activities/agenda?timeframe=today"
+      refresh_policy: "every_15_minutes"
+    timeline_entries:
+      - date: "now"
+        content:
+          sections:
+            - type: "header"
+              text: "Today's Focus"
+              trailing_date: true
+            - type: "task_list"
+              tasks: "{topTasks[0..2]}"
+              show_priority: true
+              show_project: true
+            - type: "stats_row"
+              stats:
+                - label: "Habits"
+                  value: "{habitsCompleted}/{habitsTotal}"
+                - label: "Meetings"
+                  value: "{meetingCount}"
+                - label: "Overdue"
+                  value: "{overdueCount}"
+    data_schema:
+      topTasks: "[Task]"
+      habitsCompleted: "Int"
+      habitsTotal: "Int"
+      meetingCount: "Int"
+      overdueCount: "Int"
+
+# ============================================================
+# LIVE ACTIVITY CONTRACTS
+# ============================================================
+
+live_activities:
+  # Focus Session Activity
+  - id: "FocusSessionActivity"
+    display_name: "Focus Session"
+    description: "Track active focus session with Pomodoro timer"
+    attributes:
+      sessionID: "UUID"
+      taskName: "String"
+      totalMinutes: "Int"
+    content_state:
+      elapsedMinutes: "Int"
+      isBreak: "Bool"
+      isPaused: "Bool"
+    update_frequency: 60  # seconds
+    max_duration: 14400  # 4 hours
+    stale_date_offset: 300  # 5 minutes after session end
+
+    # Dynamic Island Configuration
+    dynamic_island:
+      compact:
+        leading:
+          icon: "{isBreak ? '☕️' : '🧠'}"
+        trailing:
+          text: "{elapsedMinutes}"
+          font: "monospaced_digit"
+      minimal:
+        icon: "timer"
+      expanded:
+        leading_region:
+          text: "{taskName}"
+          font: "caption"
+        trailing_region:
+          text: "{elapsedMinutes} min"
+          font: "caption_monospaced"
+        bottom_region:
+          type: "progress_view"
+          value: "{elapsedMinutes}"
+          total: "{totalMinutes}"
+          tint: "{isBreak ? 'orange' : 'blue'}"
+        center_region:
+          button:
+            action: "{isPaused ? 'resume' : 'pause'}"
+            icon: "{isPaused ? 'play.fill' : 'pause.fill'}"
+
+    # Lock Screen Configuration
+    lock_screen:
+      layout: "horizontal"
+      left_content:
+        text: "{isBreak ? '☕️ Break Time' : '🎯 Focus Session'}"
+        subtitle: "{taskName}"
+      right_content:
+        text: "{elapsedMinutes}/{totalMinutes} min"
+        font: "monospaced"
+
+    # Push Update Configuration
+    push_type: "token"
+    push_priority: "immediate"
+
+# ============================================================
+# SHORTCUT PARAMETER SUMMARIES
+# ============================================================
+
+shortcuts_configuration:
+  app_shortcuts:
+    - intent: "CaptureThoughtIntent"
+      short_title: "Quick Capture"
+      system_image: "lightbulb"
+      phrases:
+        - "Capture a thought in ${applicationName}"
+        - "Add note to ${applicationName}"
+
+    - intent: "QueryAgendaIntent"
+      short_title: "Daily Brief"
+      system_image: "sun.horizon"
+      phrases:
+        - "Get my ${applicationName} agenda"
+        - "Show my ${applicationName} schedule"
+
+    - intent: "LogHabitIntent"
+      short_title: "Log Habit"
+      system_image: "checkmark.circle"
+      phrases:
+        - "Log habit in ${applicationName}"
+
+    - intent: "CreateTaskIntent"
+      short_title: "Create Task"
+      system_image: "plus.circle"
+      phrases:
+        - "Create task in ${applicationName}"
+
+# ============================================================
+# SPOTLIGHT SEARCH INTEGRATION
+# ============================================================
+
+spotlight_indexing:
+  content_types:
+    - id: "thought"
+      attribute_set:
+        title: "{content_preview}"
+        content_description: "{content}"
+        keywords: "{tags}"
+        creation_date: "{created_at}"
+        domain_identifier: "com.kiro.thought"
+      search_rank: 1.0
+
+    - id: "task"
+      attribute_set:
+        title: "{title}"
+        content_description: "{notes}"
+        keywords: ["{project_name}", "{priority}"]
+        due_date: "{due_date}"
+        domain_identifier: "com.kiro.task"
+      search_rank: 0.9
+
+    - id: "file"
+      attribute_set:
+        title: "{filename}"
+        content_description: "{extracted_text}"
+        keywords: "{tags}"
+        domain_identifier: "com.kiro.file"
+      search_rank: 0.8
+
+# ============================================================
+# ERROR HANDLING & FALLBACKS
+# ============================================================
+
+error_handling:
+  network_failure:
+    strategy: "use_cached_data"
+    max_cache_age: 3600  # 1 hour
+    fallback_message: "Using cached data (last synced {last_sync_time})"
+
+  authentication_failure:
+    strategy: "prompt_reauth"
+    error_dialog: "Please sign in to Kiro to continue"
+
+  rate_limit_exceeded:
+    strategy: "exponential_backoff"
+    initial_delay: 5  # seconds
+    max_retries: 3
+
+  intent_timeout:
+    max_duration: 10  # seconds
+    fallback_message: "Taking longer than usual. Check the app for details."
+
+# ============================================================
+# PERFORMANCE SLAs
+# ============================================================
+
+performance_targets:
+  intent_response_time:
+    target_p50: 200  # ms
+    target_p95: 500  # ms
+    target_p99: 1000  # ms
+
+  widget_timeline_generation:
+    target: 2000  # ms
+    timeout: 5000  # ms
+
+  background_sync:
+    target: 15000  # ms
+    timeout: 30000  # ms
+
+  notification_delivery:
+    target: 500  # ms
+
+  live_activity_update:
+    target: 100  # ms

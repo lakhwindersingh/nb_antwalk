@@ -1,0 +1,125 @@
+---
+manifest_version: "1.0.0"
+plan_id: "extension_native_apple_siri"
+name: "Native Apple Apps with Siri Integration"
+type: "extension"
+parent_plan: "personal_os"
+status: "specification"
+created: "2024-10-04"
+updated: "2024-10-04"
+version: "1.0.0"
+
+metadata:
+  description: "Native iOS/macOS apps with deep Siri, Shortcuts, Widgets, and Live Activities integration"
+  priority: "P0"
+  impact: "high"
+  effort: "high"
+  platforms:
+    - "iOS 16+"
+    - "iPadOS 16+"
+    - "macOS 13+"
+    - "watchOS 9+"
+
+capabilities:
+  range: "E-SIRI-01 to E-SIRI-12"
+  list:
+    - id: "E-SIRI-01"
+      name: "SiriKit Intents"
+      description: "Voice commands via predefined App Intents"
+    - id: "E-SIRI-02"
+      name: "Announce Notifications"
+      description: "Alerts spoken through AirPods/CarPlay/speakers"
+    - id: "E-SIRI-03"
+      name: "Shortcuts Integration"
+      description: "Custom workflows in iOS Shortcuts app"
+    - id: "E-SIRI-04"
+      name: "Lock Screen Widgets"
+      description: "Quick view widgets for tasks and habits"
+    - id: "E-SIRI-05"
+      name: "Live Activities"
+      description: "Real-time focus session tracking with Dynamic Island"
+    - id: "E-SIRI-06"
+      name: "App Intents Framework"
+      description: "Modern intent system for iOS 16+"
+    - id: "E-SIRI-07"
+      name: "Spotlight Search"
+      description: "System-wide search integration"
+    - id: "E-SIRI-08"
+      name: "Handoff"
+      description: "Continue tasks across Apple devices"
+    - id: "E-SIRI-09"
+      name: "Background Sync"
+      description: "Sync when app not active"
+    - id: "E-SIRI-10"
+      name: "Widget Suggestions"
+      description: "Proactive widget placement by iOS"
+    - id: "E-SIRI-11"
+      name: "Focus Filters"
+      description: "Filter content by Focus mode"
+    - id: "E-SIRI-12"
+      name: "Apple Watch App"
+      description: "Companion watchOS app with complications"
+
+dependencies:
+  personal_os_pillars:
+    - "thoughts"
+    - "activities"
+    - "projects"
+    - "interactions"
+  contracts:
+    - ".nb/context/contracts/native_siri_wire_contracts.yaml"
+  rules:
+    - ".nb/context/rules/native_siri_privacy_rules.md"
+  agents:
+    - ".nb/agentic/custom/agents/agent_ios_sync_coordinator.yaml"
+  workflows:
+    - ".nb/agentic/custom/workflows/wf_morning_brief_siri.yaml"
+    - ".nb/agentic/custom/workflows/wf_background_sync.yaml"
+
+integration_points:
+  - pillar: "thoughts"
+    operations: ["create", "search", "tag"]
+  - pillar: "activities"
+    operations: ["get_agenda", "log_habit", "create_event"]
+  - pillar: "projects"
+    operations: ["create_task", "list_tasks", "update_task"]
+  - pillar: "interactions"
+    operations: ["upcoming_meetings", "meeting_context"]
+
+technical_stack:
+  language: "Swift 5.9"
+  ui_framework: "SwiftUI"
+  frameworks:
+    - "AppIntents"
+    - "WidgetKit"
+    - "ActivityKit"
+    - "UserNotifications"
+    - "Core Data"
+    - "Combine"
+    - "WatchConnectivity"
+  minimum_versions:
+    ios: "16.0"
+    ipados: "16.0"
+    macos: "13.0"
+    watchos: "9.0"
+
+performance_targets:
+  intent_response_time: "< 500ms"
+  widget_refresh: "< 2s"
+  background_sync: "< 30s"
+  notification_delivery: "< 1s"
+
+files:
+  specification:
+    - "README.md"
+    - "MANIFEST.yaml"
+    - "concise.md"
+  contracts:
+    - ".nb/context/contracts/native_siri_wire_contracts.yaml"
+  rules:
+    - ".nb/context/rules/native_siri_privacy_rules.md"
+  agents:
+    - ".nb/agentic/custom/agents/agent_ios_sync_coordinator.yaml"
+  workflows:
+    - ".nb/agentic/custom/workflows/wf_morning_brief_siri.yaml"
+    - ".nb/agentic/custom/workflows/wf_background_sync.yaml"

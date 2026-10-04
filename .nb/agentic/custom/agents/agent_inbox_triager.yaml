@@ -1,0 +1,464 @@
+---
+sessionId: session-email-triage-detailed-plan
+plan_id: extension_email_triage
+name: AI-Powered Email Triage & Smart Inbox
+version: 1.0.0
+capability_rating: Extension Specialist (E-EMAIL-01 to E-EMAIL-08)
+parent_plan: .nb/plan/personal_os/detailed.md
+---
+
+# Email Triage Extension: Comprehensive Implementation Blueprint
+
+### Strategic Motivation
+
+Email remains the primary communication channel for professional work, yet it's also one of the most significant productivity drains. Studies show knowledge workers spend 28% of their workday on email (McKinsey, 2012), with much of that time spent on low-value triage activities.
+
+**The Email Triage Extension** transforms email from a chaotic inbox into a structured intelligence stream that automatically populates Personal OS with actionable data: tasks for Projects, events for Activities, contacts for Interactions, and receipts for Purchases.
+
+---
+
+## 1. System Architecture
+
+```mermaid
+graph TB
+    subgraph Email_Sources["Email Sources"]
+        Gmail[Gmail API]
+        IMAP[Generic IMAP]
+        Exchange[Exchange/Outlook]
+    end
+
+    subgraph Email_Daemon["pos_email Daemon (Rust)"]
+        Sync[Sync Engine]
+        Parser[RFC 5322 Parser]
+        Store[Email Metadata Store]
+    end
+
+    subgraph Intelligence_Layer["Intelligence Layer"]
+        Classifier[agent_inbox_triager]
+        Summarizer[agent_email_summarizer]
+        Extractor[agent_entity_extractor]
+        Composer[agent_reply_composer]
+    end
+
+    subgraph Personal_OS_Pillars["Personal OS Integration"]
+        Projects[Projects: Tasks]
+        Activities[Activities: Events]
+        Interactions[Interactions: Contacts]
+        Purchases[Purchases: Receipts]
+        Thoughts[Thoughts: Insights]
+    end
+
+    Email_Sources --> Sync
+    Sync --> Parser
+    Parser --> Store
+    Store --> Classifier
+    Classifier --> Summarizer
+    Classifier --> Extractor
+    Store --> Composer
+
+    Extractor --> Projects
+    Extractor --> Activities
+    Extractor --> Interactions
+    Extractor --> Purchases
+    Summarizer --> Thoughts
+```
+
+---
+
+## 2. Rust Crate Architecture
+
+### 2.1. `pos_email` - Core Email Engine
+
+```rust
+// workplace/modules/pos_email/src/lib.rs
+
+pub struct EmailAccount {
+    pub id: Uuid,
+    pub email: String,
+    pub provider: EmailProvider,
+    pub credentials: CredentialRef, // Reference to vault item
+    pub sync_state: SyncState,
+}
+
+pub enum EmailProvider {
+    Gmail { project_id: String, client_id: String },
+    IMAP { host: String, port: u16, tls: bool },
+    Exchange { server_url: String },
+}
+
+pub struct SyncState {
+    pub last_sync: DateTime<Utc>,
+    pub last_message_id: Option<String>,
+    pub sync_token: Option<String>, // For Gmail API
+}
+
+pub struct Email {
+    pub id: Uuid,
+    pub message_id: String,
+    pub account_id: Uuid,
+    pub from: EmailAddress,
+    pub to: Vec<EmailAddress>,
+    pub cc: Vec<EmailAddress>,
+    pub subject: String,
+    pub date: DateTime<Utc>,
+    pub body_snippet: String, // First 500 chars
+    pub has_attachments: bool,
+    pub thread_id: Option<String>,
+    pub in_reply_to: Option<String>,
+    pub category: Option<EmailCategory>,
+    pub classification_confidence: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EmailCategory {
+    ActionRequired,
+    FYI,
+    Newsletter,
+    Receipt,
+    Spam,
+}
+
+pub trait EmailClient: Send + Sync {
+    async fn authenticate(&mut self, credentials: &SecretBuffer) -> Result<()>;
+    async fn fetch_messages(&self, since: DateTime<Utc>) -> Result<Vec<RawMessage>>;
+    async fn mark_read(&self, message_id: &str) -> Result<()>;
+    async fn archive(&self, message_id: &str) -> Result<()>;
+    async fn send(&self, message: &OutgoingMessage) -> Result<()>;
+}
+```
+
+### 2.2. `pos_triage` - Classification & Extraction
+
+```rust
+// workplace/modules/pos_triage/src/lib.rs
+
+pub struct EmailClassifier {
+    llm_client: LlmClient,
+    feature_extractor: FeatureExtractor,
+}
+
+impl EmailClassifier {
+    pub async fn classify(&self, email: &Email) -> Result<Classification> {
+        // Extract features for classification
+        let features = self.feature_extractor.extract(email);
+
+        // Use LLM for classification (or local model as fallback)
+        let prompt = format!(
+            "Classify this email into one of: action_required, fyi, newsletter, receipt, spam\n\
+             Subject: {}\n\
+             From: {}\n\
+             Snippet: {}\n\
+             Features: {:#?}\n\n\
+             Return JSON: {{\"category\": \"...\", \"confidence\": 0.0-1.0, \"reasoning\": \"...\"}}",
+            email.subject, email.from, email.body_snippet, features
+        );
+
+        let response = self.llm_client.complete(&prompt).await?;
+        let classification: Classification = serde_json::from_str(&response)?;
+
+        Ok(classification)
+    }
+}
+
+pub struct FeatureExtractor;
+
+impl FeatureExtractor {
+    pub fn extract(&self, email: &Email) -> EmailFeatures {
+        EmailFeatures {
+            has_question_mark: email.subject.contains('?') || email.body_snippet.contains('?'),
+            has_deadline_words: self.contains_deadline_words(&email.body_snippet),
+            has_unsubscribe_link: email.body_snippet.contains("unsubscribe"),
+            has_price_pattern: self.extract_price(&email.body_snippet).is_some(),
+            sender_in_contacts: false, // TODO: check against CRM
+            is_cc_recipient: email.cc.iter().any(|addr| addr.email == "user@example.com"),
+            word_count: email.body_snippet.split_whitespace().count(),
+        }
+    }
+
+    fn contains_deadline_words(&self, text: &str) -> bool {
+        let deadline_keywords = ["deadline", "due", "by tomorrow", "asap", "urgent"];
+        deadline_keywords.iter().any(|kw| text.to_lowercase().contains(kw))
+    }
+
+    fn extract_price(&self, text: &str) -> Option<f64> {
+        // Regex: $XX.XX or XX.XX USD
+        let re = regex::Regex::new(r"\$(\d+(?:\.\d{2})?)").unwrap();
+        re.captures(text)
+            .and_then(|cap| cap.get(1))
+            .and_then(|m| m.as_str().parse::<f64>().ok())
+    }
+}
+
+pub struct EntityExtractor {
+    llm_client: LlmClient,
+}
+
+impl EntityExtractor {
+    pub async fn extract_tasks(&self, email: &Email) -> Result<Vec<ExtractedTask>> {
+        let prompt = format!(
+            "Extract action items from this email. Return JSON array.\n\n\
+             Subject: {}\n\
+             Body: {}\n\n\
+             Format: [{{\"title\": \"...\", \"description\": \"...\", \"due_date\": \"YYYY-MM-DD or null\", \"priority\": 1-4}}]",
+            email.subject, email.body_snippet
+        );
+
+        let response = self.llm_client.complete_structured(&prompt).await?;
+        let tasks: Vec<ExtractedTask> = serde_json::from_str(&response)?;
+
+        Ok(tasks)
+    }
+
+    pub async fn extract_events(&self, email: &Email) -> Result<Vec<ExtractedEvent>> {
+        // Parse .ics attachments if present
+        if email.has_attachments {
+            // TODO: Fetch and parse .ics file
+        }
+
+        // Otherwise, use LLM to extract meeting details from text
+        let prompt = format!(
+            "Extract meeting/event details from this email. Return JSON array.\n\n\
+             Subject: {}\n\
+             Body: {}\n\n\
+             Format: [{{\"title\": \"...\", \"start\": \"ISO8601\", \"end\": \"ISO8601\", \"location\": \"...\", \"attendees\": [...]}}]",
+            email.subject, email.body_snippet
+        );
+
+        let response = self.llm_client.complete_structured(&prompt).await?;
+        let events: Vec<ExtractedEvent> = serde_json::from_str(&response)?;
+
+        Ok(events)
+    }
+
+    pub async fn extract_contacts(&self, email: &Email) -> Result<Vec<ExtractedContact>> {
+        // Extract from email signature
+        let signature = self.extract_signature(&email.body_snippet);
+
+        // Parse name, title, company, phone
+        let contact = self.parse_signature(&signature)?;
+
+        Ok(vec![contact])
+    }
+
+    pub async fn extract_receipt(&self, email: &Email) -> Result<ExtractedReceipt> {
+        let prompt = format!(
+            "Extract receipt details from this email. Return JSON.\n\n\
+             Subject: {}\n\
+             Body: {}\n\n\
+             Format: {{\"vendor\": \"...\", \"amount_cents\": 0, \"currency\": \"USD\", \"date\": \"YYYY-MM-DD\", \"items\": [...]}}",
+            email.subject, email.body_snippet
+        );
+
+        let response = self.llm_client.complete_structured(&prompt).await?;
+        let receipt: ExtractedReceipt = serde_json::from_str(&response)?;
+
+        Ok(receipt)
+    }
+}
+```
+
+---
+
+## 3. SQLite Schema
+
+```sql
+-- Email accounts
+CREATE TABLE IF NOT EXISTS email_accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    provider TEXT NOT NULL CHECK (provider IN ('gmail', 'imap', 'exchange')),
+    provider_config JSON NOT NULL,
+    vault_credential_id TEXT NOT NULL,
+    last_sync DATETIME,
+    last_message_id TEXT,
+    sync_token TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Email metadata (bodies not stored)
+CREATE TABLE IF NOT EXISTS emails (
+    id TEXT PRIMARY KEY,
+    message_id TEXT UNIQUE NOT NULL,
+    account_id TEXT NOT NULL REFERENCES email_accounts(id) ON DELETE CASCADE,
+    thread_id TEXT,
+    in_reply_to TEXT,
+    from_name TEXT NOT NULL,
+    from_email TEXT NOT NULL,
+    to_emails JSON NOT NULL,
+    cc_emails JSON,
+    subject TEXT NOT NULL,
+    date DATETIME NOT NULL,
+    body_snippet TEXT NOT NULL, -- First 500 chars
+    has_attachments BOOLEAN NOT NULL DEFAULT 0,
+    category TEXT CHECK (category IN ('action_required', 'fyi', 'newsletter', 'receipt', 'spam')),
+    classification_confidence REAL,
+    classification_reasoning TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT 0,
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_emails_account_date (account_id, date DESC),
+    INDEX idx_emails_category (category, date DESC),
+    INDEX idx_emails_thread (thread_id)
+);
+
+-- Email summaries
+CREATE TABLE IF NOT EXISTS email_summaries (
+    id TEXT PRIMARY KEY,
+    email_id TEXT UNIQUE NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
+    summary TEXT NOT NULL,
+    key_points JSON NOT NULL,
+    generated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Extracted entities (linkage to Personal OS pillars)
+CREATE TABLE IF NOT EXISTS email_extracted_entities (
+    id TEXT PRIMARY KEY,
+    email_id TEXT NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('task', 'event', 'contact', 'receipt')),
+    entity_id TEXT NOT NULL, -- ID in target pillar (e.g., project_task_id)
+    pillar TEXT NOT NULL CHECK (pillar IN ('projects', 'activities', 'interactions', 'purchases')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_entities_email (email_id),
+    INDEX idx_entities_target (pillar, entity_id)
+);
+
+-- Reply drafts
+CREATE TABLE IF NOT EXISTS email_reply_drafts (
+    id TEXT PRIMARY KEY,
+    email_id TEXT NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
+    draft_body TEXT NOT NULL,
+    tone TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    generated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent BOOLEAN NOT NULL DEFAULT 0,
+    sent_at DATETIME
+);
+```
+
+---
+
+## 4. Agent Implementation: `agent_inbox_triager`
+
+```yaml
+# .nb/agentic/custom/agents/agent_inbox_triager.yaml
+
+agent_id: agent_inbox_triager
+agent_name: Inbox Triage Coordinator
+version: 1.0.0
+extension: email_triage
+model_tier: tier_a
+description: Intelligent email classification into smart inbox categories
+
+capabilities:
+  - email_classification
+  - priority_scoring
+  - sender_reputation
+  - category_routing
+
+tools:
+  - classify_email
+  - batch_classify_emails
+  - update_classification
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.1
+  max_tokens: 1024
+
+system_prompt: |
+  You are the Inbox Triager for Personal OS Email Extension. Your role is to:
+
+  1. Classify emails into 5 categories:
+     - **action_required**: Emails needing a response or action from the user
+     - **fyi**: Informational emails (no action needed)
+     - **newsletter**: Marketing, promotions, bulk emails
+     - **receipt**: Purchase confirmations, invoices, receipts
+     - **spam**: Unwanted or suspicious emails
+
+  2. Provide confidence scores (0.0-1.0) for classifications
+
+  3. Explain reasoning in 1-2 sentences
+
+  CLASSIFICATION GUIDELINES:
+
+  **Action Required**:
+  - Direct questions to the user
+  - Meeting requests without calendar invite
+  - Code review requests
+  - Deadline-driven requests
+  - From known contacts asking for something
+
+  **FYI**:
+  - Status updates, deployment notifications
+  - CC'd on threads where user is not primary recipient
+  - Team announcements
+  - Automated system notifications
+
+  **Newsletter**:
+  - Contains unsubscribe link
+  - From mailing list or marketing platform
+  - HTML-heavy promotional content
+  - Regular digest emails
+
+  **Receipt**:
+  - Contains price/amount
+  - From known merchants (Stripe, PayPal, Amazon, etc.)
+  - Subject contains: receipt, invoice, order, payment
+  - Has attachment: .pdf invoice
+
+  **Spam**:
+  - Suspicious links or attachments
+  - Excessive capitalization or urgency
+  - From unknown sender with generic greeting
+  - Phishing indicators
+
+tool_schemas:
+  classify_email:
+    input:
+      message_id: string
+      subject: string
+      from_email: string
+      from_name: string
+      body_snippet: string
+      features:
+        type: object
+        properties:
+          has_question_mark: boolean
+          has_deadline_words: boolean
+          has_unsubscribe_link: boolean
+          has_price_pattern: boolean
+          sender_in_contacts: boolean
+          is_cc_recipient: boolean
+    output:
+      category: string
+      confidence: float
+      reasoning: string
+
+capability_token:
+  permissions:
+    - emails:read
+    - emails:classify
+    - contacts:read
+  restrictions:
+    max_batch_size: 100
+
+metrics:
+  success_criteria:
+    - classification_accuracy > 0.90
+    - avg_confidence > 0.75
+  performance_targets:
+    classification_time_ms: 200
+    batch_throughput_per_second: 50
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: none
+  fallback_behavior:
+    on_llm_failure: use_rule_based_classifier
+
+logging:
+  log_level: info
+  audit_trail: true

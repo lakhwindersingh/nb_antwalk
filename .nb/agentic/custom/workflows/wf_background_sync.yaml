@@ -1,0 +1,482 @@
+---
+workflow_id: "wf_background_sync"
+name: "iOS Background Sync"
+version: "1.0.0"
+status: "specification"
+created: "2024-10-04"
+
+metadata:
+  description: "Bidirectional sync between iOS app and Personal OS backend during background refresh"
+  category: "system"
+  priority: "high"
+  estimated_duration: "10-30 seconds"
+
+trigger:
+  type: "background_task"
+  identifier: "com.kiro.background-sync"
+  schedule:
+    frequency: "every_15_minutes"
+    earliest_begin_date: "now + 900 seconds"
+  conditions:
+    - "network is available"
+    - "if wifi_only_mode: network is wifi"
+    - "battery level > 20% or device is charging"
+    - "app is not in foreground (optional - can sync while active too)"
+
+inputs:
+  sync_type:
+    type: "string"
+    enum: ["full", "incremental", "upload_only", "download_only"]
+    default: "incremental"
+  force:
+    type: "boolean"
+    default: false
+    description: "Force sync even if recent sync occurred"
+
+outputs:
+  success:
+    type: "boolean"
+  stats:
+    type: "object"
+    properties:
+      uploaded_count: { type: "integer" }
+      downloaded_count: { type: "integer" }
+      conflicts_resolved: { type: "integer" }
+      duration_ms: { type: "integer" }
+      bytes_transferred: { type: "integer" }
+
+steps:
+  # Step 1: Pre-sync Checks
+  - id: "pre_sync_checks"
+    name: "Validate Sync Preconditions"
+    action: "check_sync_preconditions"
+    input:
+      check_network: true
+      check_authentication: true
+      check_wifi_only_setting: true
+      check_last_sync_time: true
+      min_time_since_last_sync: 600  # 10 minutes
+      force: "${inputs.force}"
+    output_binding: "preconditions"
+    timeout: 2000
+    on_error: "abort_workflow"
+
+  # Step 2: Acquire Sync Lock
+  - id: "acquire_lock"
+    name: "Acquire Sync Lock"
+    action: "acquire_distributed_lock"
+    input:
+      lock_key: "sync_lock_${device_id}"
+      ttl: 60000  # 60 seconds
+      wait: false
+    output_binding: "lock_acquired"
+    timeout: 1000
+    on_error:
+      action: "skip_workflow"
+      reason: "Another sync in progress"
+
+  # Step 3: Fetch Pending Upload Changes
+  - id: "fetch_pending_uploads"
+    name: "Get Local Unsynced Changes"
+    agent: "agent_ios_sync_coordinator"
+    tool: "fetch_pending_changes"
+    input:
+      device_id: "${device_id}"
+      entity_types: ["thought", "task", "habit_log"]
+      limit: 100
+    output_binding: "pending_uploads"
+    timeout: 5000
+    retry_policy:
+      max_retries: 2
+    on_error: "continue_to_download"
+
+  # Step 4: Upload Changes (Batch)
+  - id: "upload_changes"
+    name: "Push Local Changes to Backend"
+    agent: "agent_ios_sync_coordinator"
+    tool: "push_to_backend"
+    input:
+      changes:
+        thoughts: "${pending_uploads.thoughts}"
+        tasks: "${pending_uploads.tasks}"
+        habit_logs: "${pending_uploads.habit_logs}"
+      device_id: "${device_id}"
+      batch_size: 50
+    output_binding: "upload_result"
+    timeout: 20000  # 20 seconds
+    retry_policy:
+      max_retries: 2
+      backoff: "exponential"
+    on_error: "log_and_continue"
+    depends_on: ["fetch_pending_uploads"]
+
+  # Step 5: Handle Upload Conflicts
+  - id: "resolve_upload_conflicts"
+    name: "Resolve Upload Conflicts"
+    agent: "agent_ios_sync_coordinator"
+    tool: "resolve_conflict"
+    input:
+      conflicts: "${upload_result.conflicts}"
+      resolution_strategy: "last_write_wins"
+    output_binding: "upload_conflicts_resolved"
+    timeout: 10000
+    condition: "${upload_result.conflicts.length > 0}"
+    on_error: "defer_to_user"
+    depends_on: ["upload_changes"]
+
+  # Step 6: Mark Uploaded Entities as Synced
+  - id: "mark_uploaded_synced"
+    name: "Update Local Sync Status"
+    agent: "agent_ios_sync_coordinator"
+    tool: "mark_synced"
+    input:
+      entity_ids: "${upload_result.synced_ids}"
+      sync_timestamp: "${workflow.current_time}"
+    output_binding: "mark_result"
+    timeout: 3000
+    condition: "${upload_result.synced_ids.length > 0}"
+    depends_on: ["upload_changes"]
+
+  # Step 7: Pull Remote Changes
+  - id: "pull_remote_changes"
+    name: "Download Remote Changes"
+    agent: "agent_ios_sync_coordinator"
+    tool: "pull_from_backend"
+    input:
+      device_id: "${device_id}"
+      last_sync_timestamp: "${last_successful_sync_timestamp}"
+      entity_types: ["thought", "task", "habit", "file", "interaction"]
+    output_binding: "remote_changes"
+    timeout: 20000
+    retry_policy:
+      max_retries: 2
+      backoff: "exponential"
+    on_error: "log_and_abort"
+    depends_on: ["upload_changes"]  # Upload first to minimize conflicts
+
+  # Step 8: Apply Remote Creates
+  - id: "apply_remote_creates"
+    name: "Insert New Remote Entities"
+    action: "bulk_insert_core_data"
+    input:
+      entities:
+        thoughts: "${remote_changes.remote_changes.created.thoughts}"
+        tasks: "${remote_changes.remote_changes.created.tasks}"
+        habits: "${remote_changes.remote_changes.created.habits}"
+      mark_as_synced: true
+    output_binding: "insert_result"
+    timeout: 10000
+    depends_on: ["pull_remote_changes"]
+
+  # Step 9: Apply Remote Updates
+  - id: "apply_remote_updates"
+    name: "Merge Remote Updates"
+    action: "bulk_update_core_data"
+    input:
+      entities:
+        thoughts: "${remote_changes.remote_changes.updated.thoughts}"
+        tasks: "${remote_changes.remote_changes.updated.tasks}"
+      conflict_strategy: "last_write_wins"
+    output_binding: "update_result"
+    timeout: 10000
+    depends_on: ["pull_remote_changes"]
+
+  # Step 10: Handle Download Conflicts
+  - id: "resolve_download_conflicts"
+    name: "Resolve Download Conflicts"
+    agent: "agent_ios_sync_coordinator"
+    tool: "resolve_conflict"
+    input:
+      conflicts: "${update_result.conflicts}"
+      resolution_strategy: "last_write_wins"
+    output_binding: "download_conflicts_resolved"
+    timeout: 10000
+    condition: "${update_result.conflicts.length > 0}"
+    on_error: "defer_to_user"
+    depends_on: ["apply_remote_updates"]
+
+  # Step 11: Apply Remote Deletes
+  - id: "apply_remote_deletes"
+    name: "Delete Remotely Deleted Entities"
+    action: "bulk_delete_core_data"
+    input:
+      deletions: "${remote_changes.remote_changes.deleted}"
+      soft_delete_if_modified_locally: true
+    output_binding: "delete_result"
+    timeout: 5000
+    depends_on: ["pull_remote_changes"]
+
+  # Step 12: Update Sync Timestamp
+  - id: "update_sync_timestamp"
+    name: "Record Successful Sync"
+    action: "update_last_sync_timestamp"
+    input:
+      timestamp: "${remote_changes.new_sync_timestamp}"
+      stats:
+        uploaded: "${upload_result.synced_ids.length}"
+        downloaded: "${insert_result.count + update_result.count}"
+        conflicts: "${upload_conflicts_resolved.length + download_conflicts_resolved.length}"
+        duration_ms: "${workflow.elapsed_time}"
+    output_binding: "timestamp_updated"
+    timeout: 2000
+
+  # Step 13: Refresh Widgets
+  - id: "refresh_widgets"
+    name: "Update Widget Timelines"
+    action: "reload_all_widget_timelines"
+    input:
+      widget_kinds: ["HabitStreakCircular", "NextTaskInline", "DailySummaryMedium"]
+    output_binding: "widgets_refreshed"
+    timeout: 3000
+    on_error: "log_warning"
+    depends_on: ["update_sync_timestamp"]
+
+  # Step 14: Release Sync Lock
+  - id: "release_lock"
+    name: "Release Sync Lock"
+    action: "release_distributed_lock"
+    input:
+      lock_key: "sync_lock_${device_id}"
+    timeout: 1000
+    always_run: true  # Run even if workflow fails
+
+  # Step 15: Post Sync Notification
+  - id: "post_notification"
+    name: "Notify Observers"
+    action: "post_notification_center"
+    input:
+      notification_name: "SyncCompleted"
+      user_info:
+        success: "${outputs.success}"
+        stats: "${outputs.stats}"
+    timeout: 500
+    always_run: true
+
+  # Step 16: Log Sync History
+  - id: "log_history"
+    name: "Record Sync History"
+    action: "append_sync_log"
+    input:
+      timestamp: "${workflow.current_time}"
+      direction: "bidirectional"
+      success: "${outputs.success}"
+      uploaded_count: "${upload_result.synced_ids.length}"
+      downloaded_count: "${insert_result.count + update_result.count}"
+      conflicts_count: "${upload_conflicts_resolved.length + download_conflicts_resolved.length}"
+      duration_ms: "${workflow.elapsed_time}"
+      bytes_transferred: "${upload_result.stats.bytes_sent + remote_changes.stats.bytes_received}"
+    timeout: 2000
+    always_run: true
+
+dag_visualization: |
+  pre_sync_checks ─> acquire_lock ─┐
+                                    ├─> fetch_pending_uploads ─> upload_changes ─┬─> resolve_upload_conflicts
+                                                                                  ├─> mark_uploaded_synced
+                                                                                  └─> pull_remote_changes ─┬─> apply_remote_creates
+                                                                                                            ├─> apply_remote_updates ─> resolve_download_conflicts
+                                                                                                            └─> apply_remote_deletes
+                                                                                                                 │
+                                                                                                                 ├─> update_sync_timestamp ─> refresh_widgets
+                                                                                                                 │
+                                                                                                                 ├─> release_lock
+                                                                                                                 ├─> post_notification
+                                                                                                                 └─> log_history
+
+execution_graph:
+  phases:
+    - phase: "validation"
+      steps: ["pre_sync_checks", "acquire_lock"]
+      abort_on_failure: true
+
+    - phase: "upload"
+      steps: ["fetch_pending_uploads", "upload_changes", "resolve_upload_conflicts", "mark_uploaded_synced"]
+      parallel_groups:
+        - ["resolve_upload_conflicts", "mark_uploaded_synced"]
+
+    - phase: "download"
+      steps: ["pull_remote_changes", "apply_remote_creates", "apply_remote_updates", "resolve_download_conflicts", "apply_remote_deletes"]
+      parallel_groups:
+        - ["apply_remote_creates", "apply_remote_updates", "apply_remote_deletes"]
+
+    - phase: "finalization"
+      steps: ["update_sync_timestamp", "refresh_widgets", "release_lock", "post_notification", "log_history"]
+      always_run: ["release_lock", "post_notification", "log_history"]
+
+error_handling:
+  global_timeout: 30000  # 30 seconds (BGTaskScheduler limit)
+
+  critical_steps:
+    - "acquire_lock"  # Must succeed
+    - "release_lock"  # Must always run
+
+  retriable_errors:
+    - error_type: "NetworkError"
+      max_retries: 2
+      backoff: "exponential"
+      initial_delay: 2000
+
+    - error_type: "RateLimitError"
+      max_retries: 1
+      backoff: "fixed"
+      delay: 5000
+
+    - error_type: "TimeoutError"
+      max_retries: 1
+
+  non_retriable_errors:
+    - error_type: "AuthenticationError"
+      action: "abort_and_notify_user"
+
+    - error_type: "ConflictError"
+      action: "defer_to_manual_resolution"
+
+  failure_modes:
+    upload_failure:
+      action: "continue_to_download"
+      reason: "Download may still succeed"
+
+    download_failure:
+      action: "abort_workflow"
+      reason: "Cannot complete sync without download"
+
+    conflict_resolution_failure:
+      action: "mark_conflicts_for_user_review"
+      notification: "Some items need your attention in sync conflicts"
+
+performance_targets:
+  total_duration:
+    target: 15000  # 15 seconds
+    max: 30000  # 30 seconds (hard limit)
+
+  phase_durations:
+    validation: "< 3s"
+    upload: "< 10s"
+    download: "< 12s"
+    finalization: "< 5s"
+
+  throughput:
+    entities_per_second: "> 10"
+    max_batch_size: 100
+
+  resource_limits:
+    max_memory: "50 MB"
+    max_network_transfer: "10 MB per sync"
+
+monitoring:
+  metrics:
+    - name: "background_sync_success_rate"
+      type: "gauge"
+      target: "> 98%"
+
+    - name: "background_sync_duration_ms"
+      type: "histogram"
+      target_p50: "< 10000 ms"
+      target_p95: "< 20000 ms"
+      target_p99: "< 30000 ms"
+
+    - name: "background_sync_conflicts_total"
+      type: "counter"
+
+    - name: "background_sync_bytes_transferred"
+      type: "histogram"
+
+  alerts:
+    - condition: "sync_success_rate < 90% over 1 hour"
+      action: "log_error_and_notify_developer"
+
+    - condition: "conflicts_total > 10 in single sync"
+      action: "notify_user_to_review_conflicts"
+
+    - condition: "bytes_transferred > 10 MB"
+      action: "warn_user_about_data_usage"
+
+health_checks:
+  - check: "last_sync_within_30_minutes"
+    action_if_fail: "schedule_immediate_sync"
+
+  - check: "pending_uploads_under_500"
+    action_if_fail: "trigger_sync_now"
+
+  - check: "no_stuck_locks"
+    action_if_fail: "force_release_locks"
+
+testing:
+  scenarios:
+    - name: "normal_sync_with_changes"
+      mock_data:
+        pending_uploads: 10
+        remote_changes: 15
+        conflicts: 0
+      expected_duration: "< 15s"
+      expected_success: true
+
+    - name: "sync_with_conflicts"
+      mock_data:
+        pending_uploads: 5
+        remote_changes: 5
+        conflicts: 3
+      expected_conflicts_resolved: 3
+      expected_success: true
+
+    - name: "network_timeout_during_upload"
+      mock_failure:
+        step: "upload_changes"
+        error: "NetworkTimeout"
+      expected_behavior: "retry 2x then continue to download"
+
+    - name: "large_batch_sync"
+      mock_data:
+        pending_uploads: 100
+        remote_changes: 100
+      expected_duration: "< 30s"
+
+    - name: "offline_mode"
+      mock_failure:
+        step: "pre_sync_checks"
+        error: "NetworkUnavailable"
+      expected_behavior: "abort immediately, reschedule"
+
+integration_points:
+  - agent: "agent_ios_sync_coordinator"
+    tools: ["fetch_pending_changes", "push_to_backend", "pull_from_backend", "resolve_conflict", "mark_synced"]
+
+  - framework: "BGTaskScheduler"
+    task_identifier: "com.kiro.background-sync"
+    registration: "AppDelegate.application(_:didFinishLaunchingWithOptions:)"
+
+  - framework: "Core Data"
+    actions: ["bulk_insert", "bulk_update", "bulk_delete"]
+
+  - framework: "WidgetKit"
+    actions: ["reload_timelines"]
+
+scheduling:
+  bg_task_request:
+    earliest_begin_date: "now + 900s"  # 15 minutes
+    requires_network_connectivity: true
+    requires_external_power: false
+
+  rate_limiting:
+    min_interval_between_syncs: 600  # 10 minutes
+    max_syncs_per_hour: 6
+    max_syncs_per_day: 100
+
+user_controls:
+  settings:
+    - key: "sync.enabled"
+      type: "boolean"
+      default: true
+
+    - key: "sync.wifi_only"
+      type: "boolean"
+      default: false
+
+    - key: "sync.frequency"
+      type: "enum"
+      values: ["15min", "30min", "hourly", "manual"]
+      default: "15min"
+
+    - key: "sync.conflict_resolution"
+      type: "enum"
+      values: ["last_write_wins", "local_wins", "ask_me"]
+      default: "last_write_wins"

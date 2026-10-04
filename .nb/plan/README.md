@@ -2,12 +2,16 @@
 
 Welcome to the **Percipience Plan Space** (`.nb/plan/`). This directory houses the governance, architecture, and extension specifications for **Personal OS** and the underlying **Parent Master Context Engineering Framework**.
 
+> [!IMPORTANT]
+> **Plan Lineage & Implementation Index**: For the authoritative execution graph, topological implementation order (Lean MVP 8-Week Track vs. Full Enterprise 24-Week Track), prerequisite/successor dependencies, and platform invariant mappings, consult [**`PLAN_LINEAGE_AND_INDEX.md`**](./PLAN_LINEAGE_AND_INDEX.md).
+
 ---
 
 ## 🧭 Plan Directory Navigation
 
 ```
 .nb/plan/
+├── PLAN_LINEAGE_AND_INDEX.md        # 🌟 Master Plan Lineage, Topological Order & Dependency Index
 ├── master/                      # Framework Orchestration Foundation
 │   ├── parent-master-plan/      # Complete 36-capability master plan (v7.5.0)
 │   └── parent-master-free-plan/ # Community edition framework specification

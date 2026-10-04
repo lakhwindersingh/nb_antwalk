@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Personal OS Hybrid Search Contract",
+  "type": "object",
   "version": "1.0.0",
   "description": "Combined Tantivy BM25 + Vector Embedding query wire contract for sub-15ms search",
   "definitions": {

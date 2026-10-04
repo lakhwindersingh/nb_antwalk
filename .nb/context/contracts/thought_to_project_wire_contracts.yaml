@@ -1,3 +1,5 @@
+title: "Thought to Project Wire Contracts"
+type: "object"
 schema_version: "1.0.0"
 domain: "thought_to_project"
 contract_type: "RPC"

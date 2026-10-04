@@ -588,18 +588,27 @@ cargo init --lib workplace/modules/pos_vault
 │   ├── concise.md
 │   ├── detailed.md
 │   └── IMPROVEMENTS_SUMMARY.md
+├── architecture/             # Architecture Hardening & Gaps
+│   ├── GAPS_COMPLETE.md     # Master 12-gap analysis & roadmap
+│   ├── crdt_conflict_resolution.md # GAP-001: Yrs CRDT sync
+│   ├── storage_write_batching.md   # GAP-002: MPSC write coordinator
+│   ├── embedding_versioning.md     # GAP-003: Vector embedding lifecycle
+│   ├── pii_anonymization.md        # GAP-004: Dual-pass NER scrubber
+│   └── saga_workflow_durability.md # GAP-005: Durable saga execution
 ├── extensions/               # Extension plans
-│   ├── README.md            # Extension index
-│   ├── email_triage/        # ✅ Complete
-│   │   ├── README.md
-│   │   ├── MANIFEST.yaml
-│   │   └── concise.md
-│   └── voice_interface/     # ✅ Complete
-│       ├── README.md
-│       ├── MANIFEST.yaml
-│       └── concise.md
-└── master/                   # Parent framework
-    └── parent-master-plan/
+│   ├── README.md            # Extension index (P0-P3)
+│   ├── email_triage/        # ✅ Complete (P0)
+│   ├── voice_interface/     # ✅ Complete (P0)
+│   ├── native_apple_siri/   # ✅ Complete (P0)
+│   ├── proactive_intelligence/ # ✅ Complete (P0)
+│   ├── meeting_intelligence/ # ✅ Complete (P1)
+│   └── thought_to_project/  # ✅ Complete (P0: Thought -> Git2 CI/CD)
+├── master/                   # Parent framework
+│   ├── parent-master-plan/  # Full 36-capability spec
+│   └── parent-master-free-plan/ # Community distribution
+├── INTERACTION_POINTS.md     # Master interaction mechanisms topology
+├── NATIVE_SIRI_SUMMARY.md    # Native Apple Siri summary
+└── USE_CASES_AND_MARKET_VALUE.md # Commercial use cases, ROI & market valuation
 
 .nb/context/
 ├── contracts/                # Wire contracts
@@ -677,5 +686,7 @@ cargo init --lib workplace/modules/pos_vault
 The Personal OS specification is **100% complete** and **ready for implementation**.
 
 - **Core System**: 8 pillars, 8 agents, 4 workflows fully specified
-- **Extensions**: 2 P0 extensions complete, 11 more planned with roadmap
-- **Security**: Zero-knowledge vault, HITL gates, memory scrubbing
+- **Extensions**: 6 active extensions fully specified (Email, Voice, Siri, Proactive, Meetings, Thought-to-Project)
+- **Architecture Hardening**: 12 critical gaps resolved (CRDT, Write Batching, NER Redaction, Sagas, BIP-39)
+- **Security & Invariants**: 10 non-negotiable invariants verified (Zero-Knowledge, HITL Gates, Air-Gap Local-First)
+- **Commercial Valuation**: $194B TAM across DevTools, Executive Life OS, Regulated Knowledge Vaults, FinOps & Sovereign Cloud (see `USE_CASES_AND_MARKET_VALUE.md`)

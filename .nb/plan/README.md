@@ -36,7 +36,8 @@ Welcome to the **Percipience Plan Space** (`.nb/plan/`). This directory houses t
 │   └── custom_domain_layer_template.md # Layerable domain engineering template
 ├── COMPLETE_SUMMARY.md          # Complete documentation summary & logical Mermaid diagrams
 ├── INTERACTION_POINTS.md        # Master interaction mechanisms & loose ends analysis
-└── NATIVE_SIRI_SUMMARY.md       # Summary of Native Apple Siri integration
+├── NATIVE_SIRI_SUMMARY.md       # Summary of Native Apple Siri integration
+└── USE_CASES_AND_MARKET_VALUE.md # Commercial use cases, ROI models & market valuation
 ```
 
 ---
@@ -44,6 +45,13 @@ Welcome to the **Percipience Plan Space** (`.nb/plan/`). This directory houses t
 ## 🏛️ Layered Context Precedence Hierarchy
 
 Plans in this workspace adhere to the **3-Tier Precedence Hierarchy**:
-- **Tier 1 (Base Platform Invariants)**: Non-overridable platform invariants in `.nb/context/invariants/` and `.nb/plan/master/`.
+- **Tier 1 (Base Platform Invariants)**: Non-overridable platform invariants in `.nb/context/invariants/`, [.nb/context/rules/personal_os_invariants.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/context/rules/personal_os_invariants.md), and `.nb/plan/master/`.
 - **Tier 2 (Enterprise & Domain Wire Contracts)**: Domain wire contracts in `.nb/context/contracts/` and rules in `.nb/context/rules/`.
 - **Tier 3 (Domain Specifications & Extensions)**: Specialist agent manifests in `.nb/agentic/custom/` and plans in `.nb/plan/personal_os/` & `.nb/plan/extensions/`.
+
+---
+
+## 💼 Commercialization & Operationalization
+
+- **Use Cases & Market Valuation**: Detailed in [USE_CASES_AND_MARKET_VALUE.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/USE_CASES_AND_MARKET_VALUE.md), analyzing 5 core operational use cases across DevTools, Executive Life OS, Regulated Legal/Medical Knowledge Vaults, Personal FinOps, and Family Office Sovereign Clouds.
+- **Economic Model**: Grounded in [.nb/config/billing_plans.yaml](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/config/billing_plans.yaml) across Free Community ($0), Team ($1,499/mo), Business ($4,499/mo), and Enterprise Dedicated ($9,999/mo) tiers with a 15% Token FinOps revenue-share model.

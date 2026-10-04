@@ -11,6 +11,17 @@
       "retention_days": 365,
       "egress_timestamp": "2026-10-04T09:54:15Z",
       "status": "MIRRORED_IMMUTABLE"
+    },
+    {
+      "block_id": 8,
+      "block_hash": "65d7a7bb125cfbdde5cef554c8bb0e7d4795ecf89c29dafc6630abd17aa464d0",
+      "merkle_root": "0316139e899cc9f08f021ea1d6bf711ea01d2f32d9c09f7cbfb81b5379829c8e",
+      "provider": "LOCAL_WORM_VAULT_EMULATION",
+      "vault_uri": "file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/workspaces/worm_vault/block_000008_65d7a7bb125cfbdd.json",
+      "compliance_mode": "ENFORCE_IMMUTABLE_MODE",
+      "retention_days": 365,
+      "egress_timestamp": "2026-10-04T22:14:02Z",
+      "status": "MIRRORED_IMMUTABLE"
     }
   ]
 }

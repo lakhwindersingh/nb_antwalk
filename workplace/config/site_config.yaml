@@ -29,6 +29,15 @@ plan_security:
 
 # Module Registry for Multi-Module Mode
 modules:
+  - id: "pos_core"
+    name: "Personal OS Core Foundation"
+    path: "workplace/modules/pos_core"
+    domain: "SQLite WAL Storage, FTS5 Search, Zero-Knowledge Vault & Invariants"
+    tech_stack: "Rust (rusqlite / zeroize / parking_lot)"
+    maturity: "Verified"
+    current_recovery_point: "RP_CORE_001"
+    tests_command: "cargo test -p pos_core"
+
   - id: "pos_orchestrator"
     name: "Personal OS Orchestrator Engine"
     path: "workplace/modules/pos_orchestrator"
@@ -65,8 +74,42 @@ modules:
     current_recovery_point: "RP_TRIAGE_001"
     tests_command: "cargo test -p pos_triage"
 
+  - id: "pos_server"
+    name: "Personal OS API Daemon & MCP Server"
+    path: "workplace/modules/pos_server"
+    domain: "12 Consolidated Action-Based MCP Tools & REST Endpoints"
+    tech_stack: "Rust (pos_core / pos_orchestrator / tokio)"
+    maturity: "Verified"
+    current_recovery_point: "RP_SERVER_001"
+    tests_command: "cargo test -p pos_server"
+
+  - id: "pos_cli"
+    name: "Personal OS Canonical Terminal CLI"
+    path: "workplace/modules/pos_cli"
+    domain: "Clap v4 Terminal Interface & Subcommand Operations"
+    tech_stack: "Rust (clap / tokio)"
+    maturity: "Verified"
+    current_recovery_point: "RP_CLI_001"
+    tests_command: "cargo test -p pos_cli"
+
 # Cross-Module Wire Contracts
 contracts:
+  - id: "personal_os_wire_contract"
+    name: "Personal OS 8-Pillar Core Wire Contract"
+    spec_path: ".nb/context/contracts/personal_os_wire_contracts.yaml"
+    producer_module: "pos_server"
+    consumer_modules: ["pos_cli", "pos_orchestrator", "pos_core"]
+    version: "1.2.0"
+    status: "Verified_Compatible"
+
+  - id: "vault_security_contract"
+    name: "Zero-Knowledge Memory & Ephemeral Vault Contract"
+    spec_path: ".nb/context/contracts/vault_security_contract.json"
+    producer_module: "pos_core"
+    consumer_modules: ["pos_server", "pos_orchestrator"]
+    version: "1.0.0"
+    status: "Verified_Compatible"
+
   - id: "email_triage_contract"
     name: "Email Ingestion and Triage Wire Contract"
     spec_path: ".nb/context/contracts/email_triage_wire_contracts.yaml"
@@ -80,14 +123,6 @@ contracts:
     spec_path: ".nb/context/contracts/thought_to_project_wire_contracts.yaml"
     producer_module: "pos_thoughts"
     consumer_modules: ["pos_orchestrator"]
-    version: "1.0.0"
-    status: "Verified_Compatible"
-
-  - id: "personal_os_wire_contract"
-    name: "Personal OS Core Event Contract"
-    spec_path: ".nb/context/contracts/personal_os_wire_contracts.yaml"
-    producer_module: "pos_orchestrator"
-    consumer_modules: ["pos_thoughts", "pos_email", "pos_triage"]
     version: "1.0.0"
     status: "Verified_Compatible"
 

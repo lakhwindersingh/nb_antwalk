@@ -1,0 +1,10 @@
+{
+  "remote_url": "git@github.com:enterprise/personal-os.git",
+  "auth_type": "ssh_key",
+  "key_secret_arn": "arn:aws:secretsmanager:us-east-1:123456789012:secret/percipience-byor-deploy-key",
+  "ca_bundle_path": null,
+  "ca_verified": true,
+  "webhook_provider": "github",
+  "status": "CONNECTED",
+  "mock_deploy_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPERC_MOCK_DEPLOY_KEY_2026"
+}

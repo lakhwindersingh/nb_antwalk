@@ -115,6 +115,30 @@ ledger_chain:
   current_block_hash: ce1562e7e723860ad878031c06360bd813a77fa0d05403bdb0839bb504cc3664
   action: PR_GATE_VERIFICATION_PASSED
   block_hash: ce1562e7e723860ad878031c06360bd813a77fa0d05403bdb0839bb504cc3664
+- block_id: 14
+  block_type: STATE_UPDATE
+  prev_block_hash: ce1562e7e723860ad878031c06360bd813a77fa0d05403bdb0839bb504cc3664
+  timestamp: '2026-10-04T23:37:08.724972+00:00'
+  merkle_root: def1281358927f41bbdb5c86c7aa2e8ead7f5aa3a756a0eeed5fedd1f34e7e5b
+  current_block_hash: 373c07c64a64e965396efa9e398929408c7ba040966a6dc804ea2ebdcaf1864f
+  action: PR_GATE_VERIFICATION_PASSED
+  block_hash: 373c07c64a64e965396efa9e398929408c7ba040966a6dc804ea2ebdcaf1864f
+- block_id: 15
+  block_type: STATE_UPDATE
+  prev_block_hash: 373c07c64a64e965396efa9e398929408c7ba040966a6dc804ea2ebdcaf1864f
+  timestamp: '2026-10-04T23:37:58.527274+00:00'
+  merkle_root: def1281358927f41bbdb5c86c7aa2e8ead7f5aa3a756a0eeed5fedd1f34e7e5b
+  current_block_hash: fe7eb5621b2945273d2179d07f4ab5c3ce6704d36e9dc669acea2c900d8c0723
+  action: PR_GATE_VERIFICATION_PASSED
+  block_hash: fe7eb5621b2945273d2179d07f4ab5c3ce6704d36e9dc669acea2c900d8c0723
+- block_id: 16
+  block_type: STATE_UPDATE
+  prev_block_hash: fe7eb5621b2945273d2179d07f4ab5c3ce6704d36e9dc669acea2c900d8c0723
+  timestamp: '2026-10-04T23:41:18.268848+00:00'
+  merkle_root: def1281358927f41bbdb5c86c7aa2e8ead7f5aa3a756a0eeed5fedd1f34e7e5b
+  current_block_hash: 14023c02f0bbe4add1a31a3d8c5ed06313664690d280f45c828e739719b3cddd
+  action: PR_GATE_VERIFICATION_PASSED
+  block_hash: 14023c02f0bbe4add1a31a3d8c5ed06313664690d280f45c828e739719b3cddd
 recovery_points:
 - id: RP_GENESIS_000
   module_scope: global_system

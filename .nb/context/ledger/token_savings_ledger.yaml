@@ -1,18 +1,54 @@
 version: 1.0.0
-last_updated: '2026-10-04T23:24:51.584652+00:00'
+last_updated: '2026-10-04T23:41:18.006009+00:00'
 performance_rev_share_pct: 15.0
 summary:
-  total_events: 1
-  total_uncompressed_tokens: 494
-  total_pruned_tokens: 123
-  total_tokens_saved: 371
+  total_events: 4
+  total_uncompressed_tokens: 1976
+  total_pruned_tokens: 492
+  total_tokens_saved: 1484
   average_reduction_pct: 75.1
-  total_gross_savings_usd: 0.0011
-  total_rev_share_fee_usd: 0.0002
-  total_net_savings_usd: 0.0009
+  total_gross_savings_usd: 0.0044
+  total_rev_share_fee_usd: 0.0008
+  total_net_savings_usd: 0.0036
 events:
 - event_id: tok_evt_20261004_232451_584506
   timestamp: '2026-10-04T23:24:51.584634+00:00'
+  session_or_pr: pr_gatekeeper
+  file_path: workplace/portal/server.py
+  model_id: claude-3-5-sonnet-20241022
+  uncompressed_tokens: 494
+  pruned_tokens: 123
+  tokens_saved: 371
+  reduction_percentage: 75.1
+  gross_savings_usd: 0.001113
+  rev_share_fee_usd: 0.000167
+  net_savings_usd: 0.000946
+- event_id: tok_evt_20261004_233708_475242
+  timestamp: '2026-10-04T23:37:08.475366+00:00'
+  session_or_pr: pr_gatekeeper
+  file_path: workplace/portal/server.py
+  model_id: claude-3-5-sonnet-20241022
+  uncompressed_tokens: 494
+  pruned_tokens: 123
+  tokens_saved: 371
+  reduction_percentage: 75.1
+  gross_savings_usd: 0.001113
+  rev_share_fee_usd: 0.000167
+  net_savings_usd: 0.000946
+- event_id: tok_evt_20261004_233758_280553
+  timestamp: '2026-10-04T23:37:58.280677+00:00'
+  session_or_pr: pr_gatekeeper
+  file_path: workplace/portal/server.py
+  model_id: claude-3-5-sonnet-20241022
+  uncompressed_tokens: 494
+  pruned_tokens: 123
+  tokens_saved: 371
+  reduction_percentage: 75.1
+  gross_savings_usd: 0.001113
+  rev_share_fee_usd: 0.000167
+  net_savings_usd: 0.000946
+- event_id: tok_evt_20261004_234118_005586
+  timestamp: '2026-10-04T23:41:18.005983+00:00'
   session_or_pr: pr_gatekeeper
   file_path: workplace/portal/server.py
   model_id: claude-3-5-sonnet-20241022

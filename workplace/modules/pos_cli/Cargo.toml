@@ -1,0 +1,26 @@
+[package]
+name = "pos_cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal OS Team"]
+description = "Production CLI binary (`pos`) for Personal OS"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "pos"
+path = "src/main.rs"
+
+[dependencies]
+pos_core = { path = "../pos_core" }
+pos_server = { path = "../pos_server" }
+pos_orchestrator = { path = "../pos_orchestrator" }
+pos_thoughts = { path = "../pos_thoughts" }
+pos_email = { path = "../pos_email" }
+pos_triage = { path = "../pos_triage" }
+clap = { version = "4.4", features = ["derive"] }
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"

@@ -1,0 +1,32 @@
+# Percipience Bring-Your-Own-Repository (BYOR) Multi-VCS Adapter Configuration
+# CAP-20 Enterprise Multi-VCS Integration
+
+vcs_provider: "generic_git"
+remote_url: "git@github.com:enterprise/personal-os.git"
+auth_type: "ssh_key"
+key_secret_arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret/percipience-byor-deploy-key"
+ca_bundle_path: null
+ca_verified: true
+webhook_provider: "github"
+status: "CONNECTED"
+mock_deploy_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPERC_MOCK_DEPLOY_KEY_2026"
+
+supported_platforms:
+  - id: "github_enterprise"
+    name: "GitHub Enterprise Server"
+    auth_methods: ["ssh_key", "personal_access_token", "github_app"]
+    webhook_events: ["push", "pull_request", "check_run"]
+  - id: "gitlab_self_managed"
+    name: "GitLab Self-Managed"
+    auth_methods: ["ssh_key", "deploy_token", "oauth2"]
+    webhook_events: ["push", "merge_request", "pipeline"]
+  - id: "bitbucket_data_center"
+    name: "Bitbucket Data Center"
+    auth_methods: ["ssh_key", "http_access_token"]
+    webhook_events: ["repo:refs_changed", "pr:opened", "pr:modified"]
+
+branch_governance:
+  target_branch: "main"
+  ephemeral_worktree_prefix: "feature/subagent-"
+  atomic_merge_gate_required: true
+  auto_reclaim_zombies: true

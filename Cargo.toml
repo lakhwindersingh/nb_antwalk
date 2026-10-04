@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = [
+    "workplace/modules/pos_core",
+    "workplace/modules/pos_orchestrator",
+    "workplace/modules/pos_thoughts",
+    "workplace/modules/pos_email",
+    "workplace/modules/pos_triage",
+    "workplace/modules/pos_server",
+    "workplace/modules/pos_cli",
+]

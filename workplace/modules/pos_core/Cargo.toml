@@ -1,0 +1,24 @@
+[package]
+name = "pos_core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal OS Team"]
+description = "Core domain models, SQLite WAL storage, zero-knowledge vault, and safety invariants"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+zeroize = { version = "1.7", features = ["derive"] }
+regex = "1.10"
+tokio = { version = "1.35", features = ["full"] }
+tracing = "0.1"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3.0"

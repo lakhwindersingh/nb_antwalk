@@ -1,0 +1,10 @@
+# Percipience Flaky Test Isolation Registry
+# Non-blocking isolation store for intermittent test failures
+
+version: "1.0.0"
+updated_at: "2026-10-04T19:25:00Z"
+quarantined_flaky_tests: []
+quarantine_policy:
+  max_retries_before_quarantine: 3
+  auto_escalate_to_hitl: true
+  blocking_mode: false

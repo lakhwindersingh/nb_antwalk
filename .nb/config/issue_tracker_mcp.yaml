@@ -1,0 +1,42 @@
+# External Issue Tracker & Model Context Protocol (MCP) Bridge Configuration
+# CAP-15: Bidirectional MCP Server Bridge for Jira, Linear, and GitHub Issues
+
+version: "1.0.0"
+mcp_integrations:
+  jira:
+    enabled: true
+    server_package: "@modelcontextprotocol/server-jira"
+    endpoint: "https://company.atlassian.net"
+    auth_secret_arn: "arn:aws:secretsmanager:us-east-1:123456789012:secret/jira-api-token"
+    jql_query: "project = PERC AND status = 'Ready for Dev' AND labels = 'percipience-ready'"
+    poll_interval_seconds: 300
+    auto_transition:
+      on_start: "In Progress"
+      on_verify_pass: "Done"
+      on_hitl_quarantine: "Needs HITL Review"
+    attach_maturity_report: true
+    attach_merkle_proof: true
+
+  linear:
+    enabled: true
+    server_package: "@modelcontextprotocol/server-linear"
+    team_key: "ENG"
+    filter:
+      state: "Todo"
+      labels: ["agent-task"]
+    auto_transition:
+      on_start: "In Progress"
+      on_verify_pass: "Completed"
+      on_hitl_quarantine: "Needs Human Review"
+
+  github_issues:
+    enabled: true
+    server_package: "@modelcontextprotocol/server-github"
+    repository: "enterprise/personal-os"
+    labels: ["percipience-task"]
+    auto_close_on_pr_merge: true
+
+synchronization:
+  conflict_resolution: "prefer_merkle_ledger"
+  state_emission_format: "markdown_with_merkle_badge"
+  audit_sync_events: true

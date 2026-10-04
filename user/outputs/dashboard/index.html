@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Percipience Enterprise Observability Hub v7.5.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="brand-section">
+      <div class="logo-badge">PERCIPIENCE</div>
+      <div>
+        <div class="brand-title">Enterprise Observability Hub & Control Plane</div>
+        <div class="brand-subtitle">Parent Master Plan v7.5.0 • Quad-Space Enclave</div>
+      </div>
+    </div>
+    <div class="header-metrics">
+      <div class="metric-pill">
+        <div class="status-dot" id="server-status-dot"></div>
+        <span id="server-status-text">Standalone Mode</span>
+      </div>
+      <div class="metric-pill">
+        <span style="color: var(--text-secondary);">Merkle Height:</span>
+        <strong id="stat-merkle-height" style="color: var(--accent-blue); font-family: var(--font-mono);">12</strong>
+      </div>
+      <div class="metric-pill">
+        <span style="color: var(--text-secondary);">Maturity:</span>
+        <strong id="stat-composite-score" style="color: var(--accent-green); font-family: var(--font-mono);">0.898</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- 5-Tab Navigation -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-radar">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3.5a.5.5 0 0 1-.5-.5v-4A.5.5 0 0 1 8 4z"/></svg>
+      1. Context Maturity Radar
+    </button>
+    <button class="tab-btn" data-tab="tab-agents">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path fill-rule="evenodd" d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/></svg>
+      2. Agent Swarm & Plugins
+    </button>
+    <button class="tab-btn" data-tab="tab-workflows">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1zm-5 0A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5v-1zm-2 5a.5.5 0 0 0-.5.5v7a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.5-.5H3zm-1 0A1.5 1.5 0 0 1 3.5 5h9A1.5 1.5 0 0 1 14 6.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-7z"/></svg>
+      3. Workflow DAGs & Gates
+    </button>
+    <button class="tab-btn" data-tab="tab-finops">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718H4z"/></svg>
+      4. FinOps Token Metering & ROI
+    </button>
+    <button class="tab-btn" data-tab="tab-cicd">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+      5. Autonomous CI/CD Triad
+    </button>
+  </nav>
+
+  <!-- Main Content Areas -->
+  <main class="main-content">
+
+    <!-- Tab 1: Context Maturity Radar -->
+    <section class="tab-pane active" id="tab-radar">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>6-Dimensional Maturity Radar</span>
+            </div>
+            <span class="badge badge-green">0.898 ENTERPRISE GRADE</span>
+          </div>
+          <div class="radar-container" id="radar-chart-container">
+            <!-- Dynamic SVG Radar Chart inserted by app.js -->
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Dimension Breakdown & Targets</div>
+              <span class="badge badge-blue">SLO: > 0.850</span>
+            </div>
+            <div id="dimensions-progress-list">
+              <!-- Rendered by app.js -->
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Automated Remediation Playbooks</div>
+              <span class="badge badge-purple">Zero-Drift</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+              Continuous background synthesis ensures documentation, wire contracts, and AST skeletons remain 100% synchronized with no human intervention needed.
+            </p>
+            <ul style="font-size: 13px; color: var(--text-secondary); padding-left: 20px; line-height: 1.8;">
+              <li><strong>Doc Drift Detected:</strong> Auto-invokes <code>agent_living_doc_architect</code> to recompile Mermaid AST models.</li>
+              <li><strong>Wire Contract Mismatch:</strong> Rejects commit via <code>agent_contract_compatibility_checker</code> before PR merge.</li>
+              <li><strong>Flaky Tests:</strong> Isolates to <code>user/hitl/flaky_quarantine.yaml</code> without blocking sibling builds.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Agent Swarm & Plugins -->
+    <section class="tab-pane" id="tab-agents">
+      <div class="grid-4col">
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Registered Agents</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-blue); margin-top: 4px;">14</div>
+          <div style="font-size: 11px; color: var(--accent-green); margin-top: 4px;">100% Contract Valid</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Active Swarm Leases</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-green); margin-top: 4px;">0</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">PID-Probed & Clean</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Tier A High-Reasoning</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-purple); margin-top: 4px;">4</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">claude-3-7 / gpt-4o</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Tier B High-Throughput</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">10</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">claude-3-5-haiku / flash</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <div class="card-header">
+          <div class="card-title">Autonomous Agent Swarm & Custom Plugin Registry</div>
+          <span class="badge badge-green">Healthy Plugin Schema Enforced</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Agent Identifier</th>
+              <th>Display Name</th>
+              <th>Authority Tier</th>
+              <th>Sandbox Permissions</th>
+              <th>Health Status</th>
+            </tr>
+          </thead>
+          <tbody id="agents-table-body">
+            <!-- Rendered by app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab 3: Workflow DAGs & Gates -->
+    <section class="tab-pane" id="tab-workflows">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Declarative Multi-Agent Workflow DAGs</div>
+          <span class="badge badge-blue">Barrier Synchronization Enabled</span>
+        </div>
+        <div id="workflows-cards-container">
+          <!-- Rendered by app.js -->
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">3-Tier Layered Invariant Verification Hierarchy</div>
+          <span class="badge badge-green">100% Platform Compliant</span>
+        </div>
+        <div class="grid-3col">
+          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+            <div style="color: var(--accent-purple); font-weight: 600; font-size: 14px; margin-bottom: 8px;">Tier 1: Base Platform Invariants</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+              Core platform invariants (<code>.nb/context/invariants/platform_security_invariants.md</code>). Quarantine immutability, zero body retention, worktree isolation, SHA-256 Merkle continuity. Non-overridable.
+            </div>
+          </div>
+          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+            <div style="color: var(--accent-blue); font-weight: 600; font-size: 14px; margin-bottom: 8px;">Tier 2: Enterprise Global Rules</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+              Organization policies & wire contracts (<code>.nb/context/rules/</code>, <code>.nb/context/contracts/</code>). SemVer backward compatibility, financial safety gates, Siri/Android privacy constraints.
+            </div>
+          </div>
+          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+            <div style="color: var(--accent-green); font-weight: 600; font-size: 14px; margin-bottom: 8px;">Tier 3: Domain Custom Context</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+              Project-specific schemas, prompt templates, and custom plugins (<code>workplace/config/site_config.yaml</code>, <code>.nb/agentic/custom/</code>).
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: FinOps Token Metering & ROI Calculator -->
+    <section class="tab-pane" id="tab-finops">
+      <div class="grid-4col">
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">AST Token Reduction</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-green); margin-top: 4px;">62.4%</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">AST Skeleton Pruning</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Tokens Saved (Session)</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-blue); margin-top: 4px;">88,900</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">53,600 / 142,500 Raw</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">Gross Savings ($0.003/1K)</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-yellow); margin-top: 4px;">$0.2667</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Before 15% Performance Fee</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="font-size: 12px; color: var(--text-secondary);">15% Rev-Share Accrued</div>
+          <div style="font-size: 26px; font-weight: 700; color: var(--accent-purple); margin-top: 4px;">$0.0400</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">token_savings_ledger.yaml</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <div class="card-header">
+          <div class="card-title">Interactive Enterprise Token FinOps & ROI Calculator</div>
+          <span class="badge badge-green">Empirical 62.4% Model</span>
+        </div>
+        
+        <div class="grid-2col">
+          <div>
+            <div class="calc-control">
+              <label>
+                <span>Monthly Agent Queries:</span>
+                <strong id="roi-queries-val" style="color: var(--accent-blue); font-family: var(--font-mono);">100,000</strong>
+              </label>
+              <input type="range" id="roi-queries-slider" min="10000" max="1000000" step="10000" value="100000">
+            </div>
+
+            <div class="calc-control">
+              <label>
+                <span>Average Tokens per Prompt:</span>
+                <strong id="roi-tokens-val" style="color: var(--accent-purple); font-family: var(--font-mono);">8,000</strong>
+              </label>
+              <input type="range" id="roi-tokens-slider" min="2000" max="32000" step="1000" value="8000">
+            </div>
+          </div>
+
+          <div class="grid-3col" style="align-items: center;">
+            <div class="roi-stat-box">
+              <div class="roi-stat-val" id="calc-monthly-tokens-saved">499.2M</div>
+              <div class="roi-stat-label">Monthly Tokens Saved</div>
+            </div>
+            <div class="roi-stat-box">
+              <div class="roi-stat-val" id="calc-monthly-gross-savings">$1,497.60</div>
+              <div class="roi-stat-label">Gross LLM Savings</div>
+            </div>
+            <div class="roi-stat-box">
+              <div class="roi-stat-val" id="calc-monthly-net-savings" style="color: var(--accent-cyan);">$1,272.96</div>
+              <div class="roi-stat-label">Net Customer ROI</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: Autonomous CI/CD Triad -->
+    <section class="tab-pane" id="tab-cicd">
+      <div class="grid-3col">
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-header">
+            <div class="card-title">1. Self-Sustaining</div>
+            <span class="badge badge-green">Active</span>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            Proactively sweeps subagent worktrees, reclaims zombie PID leases, prunes uncommitted scratch diffs, and validates WORM Merkle continuity.
+          </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-header">
+            <div class="card-title">2. Self-Recovering</div>
+            <span class="badge badge-blue">Ready</span>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            Bounded TDD auto-patching (&le; 3 retries) and sub-1.2s surgical module rollbacks to verified recovery points (<code>RP_k</code>) without disturbing sibling services.
+          </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-header">
+            <div class="card-title">3. Self-Improving</div>
+            <span class="badge badge-purple">Calibrated</span>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            Closed-loop telemetry telemetry dynamically calibrates AST pruning thresholds (+12.5% compression boost) and logs lessons to <code>self_improving_ledger.yaml</code>.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <div class="card-header">
+          <div class="card-title">Autonomous Control Plane Triggers</div>
+          <div class="action-btn-group">
+            <button class="btn btn-primary" id="btn-run-gate">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/></svg>
+              Run PR Gatekeeper
+            </button>
+            <button class="btn btn-blue" id="btn-run-audit">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 0c-.69 0-1.843.265-2.928.56-1.11.3-2.229.655-2.887.87a1.54 1.54 0 0 0-1.044 1.262c-.596 4.477.787 7.795 2.464 9.99a11.777 11.777 0 0 0 3.32 2.969c.094.057.242.149.444.248a.503.503 0 0 0 .63 0c.202-.099.35-.191.444-.248a11.776 11.776 0 0 0 3.32-2.969c1.677-2.195 3.06-5.513 2.464-9.99a1.54 1.54 0 0 0-1.044-1.263 62.467 62.467 0 0 0-2.887-.87C9.843.266 8.69 0 8 0zm2.146 5.146a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647z"/></svg>
+              Run Merkle Audit
+            </button>
+            <button class="btn" id="btn-run-heal">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+              Trigger Self-Healing
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Live Gateway Execution Console:</div>
+          <div class="console-box" id="triad-terminal-output">[2026-10-04T19:25:00Z] Autonomous CI/CD Triad online. Ready for command execution.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    Percipience Context Engineering Platform v7.5.0 • Quad-Space Enclave Protected • SHA-256 Merkle Ledger Immutability
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

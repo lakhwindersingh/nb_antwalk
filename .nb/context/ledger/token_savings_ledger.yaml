@@ -1,13 +1,25 @@
 version: 1.0.0
-last_updated: '2026-10-04T09:54:15.088506+00:00'
+last_updated: '2026-10-04T23:24:51.584652+00:00'
 performance_rev_share_pct: 15.0
 summary:
-  total_events: 0
-  total_uncompressed_tokens: 0
-  total_pruned_tokens: 0
-  total_tokens_saved: 0
-  average_reduction_pct: 0.0
-  total_gross_savings_usd: 0.0
-  total_rev_share_fee_usd: 0.0
-  total_net_savings_usd: 0.0
-events: []
+  total_events: 1
+  total_uncompressed_tokens: 494
+  total_pruned_tokens: 123
+  total_tokens_saved: 371
+  average_reduction_pct: 75.1
+  total_gross_savings_usd: 0.0011
+  total_rev_share_fee_usd: 0.0002
+  total_net_savings_usd: 0.0009
+events:
+- event_id: tok_evt_20261004_232451_584506
+  timestamp: '2026-10-04T23:24:51.584634+00:00'
+  session_or_pr: pr_gatekeeper
+  file_path: workplace/portal/server.py
+  model_id: claude-3-5-sonnet-20241022
+  uncompressed_tokens: 494
+  pruned_tokens: 123
+  tokens_saved: 371
+  reduction_percentage: 75.1
+  gross_savings_usd: 0.001113
+  rev_share_fee_usd: 0.000167
+  net_savings_usd: 0.000946

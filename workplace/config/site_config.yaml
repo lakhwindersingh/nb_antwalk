@@ -1,0 +1,101 @@
+# Workplace Master Multi-Module Configuration
+# Adheres to Percipience Quad-Space Specifications & Parent Master Plan v7.5.0
+
+version: "7.5.0"
+project:
+  name: "Personal_OS_Enterprise_Workspace"
+  domain: "Universal Multi-Module Enterprise Space"
+  mode: "multi_module"
+  methodology: "Agile / Bounded TDD / Hybrid SDLC"
+  tech_stack:
+    language: "Rust / Python / Polyglot"
+    framework: "Cargo Multi-Crate Workspace / Percipience Engine"
+    orchestration: "Multi-Agent Framework (Percipience)"
+  code_config: "workplace/config/site_config.yaml"
+
+plan_security:
+  bundle_mode: "plaintext_md"
+  signer_public_key: "ed25519:neutron_binary_pub_91823"
+  obfuscated_spaces:
+    - space: "agentic/"
+      status: "Transparent_Filesystem"
+    - space: "context/"
+      status: "Transparent_Filesystem"
+  public_spaces:
+    - space: "workplace/"
+      status: "Transparent_Filesystem"
+    - space: "user/"
+      status: "Transparent_Filesystem"
+
+# Module Registry for Multi-Module Mode
+modules:
+  - id: "pos_orchestrator"
+    name: "Personal OS Orchestrator Engine"
+    path: "workplace/modules/pos_orchestrator"
+    domain: "Core Intent Routing, Subagent Leases & Pipeline Dispatch"
+    tech_stack: "Rust (tokio / async-channel)"
+    maturity: "Verified"
+    current_recovery_point: "RP_ORCH_001"
+    tests_command: "cargo test -p pos_orchestrator"
+
+  - id: "pos_thoughts"
+    name: "Thought to Project Processor"
+    path: "workplace/modules/pos_thoughts"
+    domain: "Thought Ingestion, Task Graph Decomposition & Project Synthesis"
+    tech_stack: "Rust (serde / serde_json)"
+    maturity: "Verified"
+    current_recovery_point: "RP_THOUGHT_001"
+    tests_command: "cargo test -p pos_thoughts"
+
+  - id: "pos_email"
+    name: "Email Ingestion & Provider Bridge"
+    path: "workplace/modules/pos_email"
+    domain: "Multi-Account Ingestion, IMAP/OAuth2 Bridge & Account Management"
+    tech_stack: "Rust (async_trait / chrono / uuid)"
+    maturity: "Verified"
+    current_recovery_point: "RP_EMAIL_001"
+    tests_command: "cargo test -p pos_email"
+
+  - id: "pos_triage"
+    name: "Email Triage & Extraction Engine"
+    path: "workplace/modules/pos_triage"
+    domain: "Zero-Shot Classification, Action Item Extraction & Threat Scanning"
+    tech_stack: "Rust (pos_email client / regex)"
+    maturity: "Verified"
+    current_recovery_point: "RP_TRIAGE_001"
+    tests_command: "cargo test -p pos_triage"
+
+# Cross-Module Wire Contracts
+contracts:
+  - id: "email_triage_contract"
+    name: "Email Ingestion and Triage Wire Contract"
+    spec_path: ".nb/context/contracts/email_triage_wire_contracts.yaml"
+    producer_module: "pos_email"
+    consumer_modules: ["pos_triage", "pos_orchestrator"]
+    version: "1.0.0"
+    status: "Verified_Compatible"
+
+  - id: "thought_to_project_contract"
+    name: "Thought to Project Synthesis Wire Contract"
+    spec_path: ".nb/context/contracts/thought_to_project_wire_contracts.yaml"
+    producer_module: "pos_thoughts"
+    consumer_modules: ["pos_orchestrator"]
+    version: "1.0.0"
+    status: "Verified_Compatible"
+
+  - id: "personal_os_wire_contract"
+    name: "Personal OS Core Event Contract"
+    spec_path: ".nb/context/contracts/personal_os_wire_contracts.yaml"
+    producer_module: "pos_orchestrator"
+    consumer_modules: ["pos_thoughts", "pos_email", "pos_triage"]
+    version: "1.0.0"
+    status: "Verified_Compatible"
+
+# Enterprise Observability Portal Config
+portal:
+  host: "127.0.0.1"
+  port: 8088
+  dashboard_dir: "user/outputs/dashboard"
+  telemetry_enabled: true
+  auto_reload: true
+  refresh_interval_ms: 2500

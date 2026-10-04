@@ -63,7 +63,7 @@ flowchart TD
     subgraph Tier2["Tier 2: Enterprise Wire Contracts (JSON Schema Draft-07)"]
         C_Core["Primary Domain Wire Contract<br/>personal_os_wire_contracts.yaml (v1.2.0)<br/>(8-Pillar RPC & 12 Consolidated MCP Tools)"]
         C_Security["Security & Storage Contracts<br/>vault_security_contract.json & hybrid_search_contract.json<br/>(Zeroize RAM Leases & Sub-15ms FTS5/Vector)"]
-        C_Specialized["Subsystem Integration Contracts<br/>thought_to_project, native_siri & plan_synthesis<br/>(Zettelkasten AST, AppIntents & MVS Generation)"]
+        C_Specialized["Subsystem Integration Contracts<br/>thought_to_project, native_siri, native_android & plan_synthesis<br/>(Zettelkasten AST, AppIntents, AppActions & MVS Generation)"]
     end
 
     %% GOVERNANCE & ENFORCEMENT FLOWS
@@ -168,6 +168,7 @@ flowchart TD
         Ext_Siri["Native Apple SiriKit Extension<br/>.nb/plan/extensions/native_apple_siri/<br/>(App Intents & Dynamic Island)"]
         Ext_Voice["Voice Interface Extension<br/>.nb/plan/extensions/voice_interface/<br/>(Whisper.cpp & 'Hey Kiro' Audio Ingestion)"]
         Ext_Email["Email Triage Extension<br/>.nb/plan/extensions/email_triage/<br/>(IMAP/OAuth2 & Invoice Parser)"]
+        Ext_Android["Native Android Extension<br/>.nb/plan/extensions/native_android/<br/>(Google Assistant, Glance & Gemini Nano)"]
     end
 
     subgraph Ext_P1["Intelligence Extensions (P1)"]
@@ -334,6 +335,7 @@ The following table indexes all plans, contracts, gap specifications, extensions
 | [extensions/meta_orchestrator/README.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/meta_orchestrator/README.md) | Meta-Orchestrator Extension | Subsystem Extension | `1.0.0` Complete | Detailed Plan § 3.9 | All cross-domain workflows | Semantic intent classifier (<2ms LRU cache), dynamic processor registry, router |
 | [extensions/thought_to_project/detailed.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/thought_to_project/detailed.md) | Thought-to-Project Triad | Subsystem Extension | `1.0.0` Complete | `pos_thoughts`, `pos_projects` | Autonomous CI/CD pipeline | Multi-agent conversion from raw thought to verifiable Git task DAG and worktrees |
 | [extensions/native_apple_siri/concise.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/native_apple_siri/concise.md) | Native Apple SiriKit Extension | Subsystem Extension | `1.0.0` Complete | Detailed Plan § 6.4 | iOS / macOS App Client | Swift-Rust UniFFI bindings, SiriKit App Intents, Dynamic Island Live Activities |
+| [extensions/native_android/README.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/native_android/README.md) | Native Android App Extension | Subsystem Extension | `1.0.0` Complete | Detailed Plan § 6.4, native_android_wire_contracts.yaml | Android & Wear OS Client | Kotlin Compose UI, Google Assistant App Actions, Jetpack Glance, AppSearch, Gemini Nano |
 | [extensions/voice_interface/concise.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/voice_interface/concise.md) | Voice Interface Extension | Subsystem Extension | `1.0.0` Planned | `pos_files`, `pos_thoughts` | Audio input daemon | Local Whisper.cpp audio ingestion, wake word ("Hey Kiro"), 3s thought capture |
 | [extensions/email_triage/concise.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/email_triage/concise.md) | Email Triage Extension | Subsystem Extension | `1.0.0` Planned | `pos_files`, `pos_purchases` | Communication pipeline | IMAP/Gmail OAuth2 sync, 5-category classification, receipt attachment parser |
 | [extensions/meeting_intelligence/concise.md](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/extensions/meeting_intelligence/concise.md) | Meeting Intelligence Extension | Subsystem Extension | `1.0.0` Planned | `pos_activities`, `pos_interactions` | Meeting debrief pipeline | Calendar auto-join, multi-speaker diarization, decision & commitment extraction |

@@ -33,6 +33,7 @@ Welcome to the **Percipience Plan Space** (`.nb/plan/`). This directory houses t
 │   ├── email_triage/            # P0: Smart inbox, IMAP sync & entity extraction
 │   ├── voice_interface/         # P0: Local Whisper audio pipeline & speech capture
 │   ├── native_apple_siri/       # P0: iOS/macOS SiriKit App Intents & Live Activities
+│   ├── native_android/          # P0: Android/Wear OS Google Assistant & Glance widgets
 │   ├── proactive_intelligence/  # P0: Baseline learning & anomaly detection
 │   ├── meeting_intelligence/    # P1: Meeting auto-join, diarization & summaries
 │   └── thought_to_project/      # P0: Thought-to-Project Autonomous Plan & CI/CD Pipeline

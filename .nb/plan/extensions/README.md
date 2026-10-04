@@ -54,32 +54,32 @@ Hands-free interaction with Personal OS through natural speech. Whisper-based lo
 
 ---
 
-### 3. ✅ Native Apple Siri Integration
+### 4. ✅ Native Android Integration (Google Assistant & Gemini Nano)
 **Status**: Specification Complete  
-**Path**: `.nb/plan/extensions/native_apple_siri/`  
-**Capabilities**: E-SIRI-01 to E-SIRI-12
+**Path**: `.nb/plan/extensions/native_android/`  
+**Capabilities**: E-AND-01 to E-AND-12
 
-Native iOS/macOS integration using SiriKit App Intents, Announce Notifications, Widgets, and Live Activities. Deep Apple ecosystem integration with local-first architecture.
+Native Android and Wear OS companion app integrating deeply with Google Assistant App Actions, Jetpack Glance Widgets, Rich Ongoing Notifications, AppSearch, and on-device Gemini Nano (AICore).
 
 **Key Files**:
-- [README.md](./native_apple_siri/README.md) - Overview and architecture
-- [MANIFEST.yaml](./native_apple_siri/MANIFEST.yaml) - Metadata and capabilities
-- [concise.md](./native_apple_siri/concise.md) - Layerable specification
-- [native_siri_wire_contracts.yaml](../../context/contracts/native_siri_wire_contracts.yaml) - API contracts
-- [native_siri_privacy_rules.md](../../context/rules/native_siri_privacy_rules.md) - Privacy rules
-- Agent: `agent_ios_sync_coordinator`
-- Workflows: `wf_morning_brief_siri`, `wf_background_sync`
+- [README.md](./native_android/README.md) - Overview, architecture & shortcuts.xml
+- [MANIFEST.yaml](./native_android/MANIFEST.yaml) - Metadata and capabilities
+- [concise.md](./native_android/concise.md) - Layerable specification
+- [native_android_wire_contracts.yaml](../../context/contracts/native_android_wire_contracts.yaml) - App Actions & AppSearch wire contracts
+- Agent: `agent_android_sync_coordinator`
+- Workflows: `wf_morning_brief_android`, `wf_workmanager_sync`
 
 **Key Features**:
-- Siri App Intents (capture, query, actions)
-- Announce Notifications via AirPods/CarPlay
-- Home & Lock Screen Widgets
-- Live Activities with Dynamic Island
-- Background sync every 15 minutes
-- Spotlight search integration
-- Apple Watch complications
-- Handoff & Continuity support
-- Local-first with Core Data
+- Google Assistant App Actions (CREATE_NOTE, GET_ITEM_LIST BIIs)
+- Android AppSearch local on-device document indexing (Zero cloud leakage)
+- Jetpack Glance interactive home screen and lock screen widgets
+- Rich Ongoing Notifications & Status Bar Chips for active focus intervals
+- Rust UniFFI JNI safe bindings (`libpos_android.so`)
+- Hardware-backed Android Keystore (StrongBox TEE) + BiometricPrompt
+- Wear OS 4+ companion app with interactive Tiles and Complications
+- On-device Gemini Nano (AICore) SLM summarization
+- Text-To-Speech (TTS) voice announcements over Pixel Buds & Android Auto
+- Notification Bubbles & Quick Settings pull-down capture tile
 
 **Impact**: High | **Effort**: High | **Integration**: All 8 pillars
 
@@ -116,7 +116,7 @@ Native iOS/macOS integration using SiriKit App Intents, Announce Notifications, 
 
 ---
 
-### 4. ✅ Proactive Intelligence & Anomaly Detection
+### 5. ✅ Proactive Intelligence & Anomaly Detection
 **Status**: Specification Complete  
 **Path**: `.nb/plan/extensions/proactive_intelligence/`  
 **Capabilities**: E-PROACT-01 to E-PROACT-06
@@ -132,7 +132,7 @@ System learns usage patterns and surfaces anomalies proactively. Detects unusual
 
 ---
 
-### 5. ✅ Thought-to-Project Autonomous Plan Pipeline
+### 6. ✅ Thought-to-Project Autonomous Plan Pipeline
 **Status**: Specification Complete  
 **Path**: `.nb/plan/extensions/thought_to_project/`  
 **Capabilities**: E-THOUGHT-01 to E-THOUGHT-08

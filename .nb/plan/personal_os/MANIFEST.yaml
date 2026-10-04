@@ -62,6 +62,7 @@ related_contracts:
   - .nb/context/contracts/personal_os_wire_contracts.yaml
   - .nb/context/contracts/vault_security_contract.json
   - .nb/context/contracts/hybrid_search_contract.json
+  - .nb/context/contracts/native_android_wire_contracts.yaml
 related_rules:
   - .nb/context/rules/personal_os_invariants.md
   - .nb/context/rules/financial_safety_rules.md

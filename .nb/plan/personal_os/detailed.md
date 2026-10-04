@@ -449,6 +449,16 @@ Personal OS registers built-in prompt workflows that IDEs and agents can invoke 
 - Interactive SiriKit App Intents for hands-free voice commands.
 - Dynamic Island and Lock Screen Live Activities displaying real-time focus timers and autonomous CI/CD pipeline progress.
 
+### 6.5. Native Android Ecosystem Integration (`native_android`)
+
+- Kotlin-Rust safe JNI FFI bindings cross-compiled via `uniffi-rs` (`libpos_android.so`).
+- Google Assistant App Actions & Built-in Intents (`CREATE_NOTE`, `GET_ITEM_LIST`, `START_FOCUS_SESSION`).
+- Jetpack Glance interactive home screen and lock screen Compose widgets.
+- Rich Ongoing Notifications & Status Bar Live Chips tracking active Pomodoro intervals and subagent tasks.
+- Android AppSearch local document indexing for zero-latency, private device search.
+- Standalone Wear OS 4+ companion app with glanceable Compose Tiles and watch face complications.
+- On-device Gemini Nano (Android AICore) SLM summarization with zero cloud network egress.
+
 ---
 
 ## 7. Phased Implementation Roadmap

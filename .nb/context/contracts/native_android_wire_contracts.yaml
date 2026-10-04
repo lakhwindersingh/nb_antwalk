@@ -1,0 +1,139 @@
+title: "Native Android Wire Contracts"
+type: "object"
+schema_version: "1.0.0"
+domain: "native_android_integration"
+framework: "Google Assistant App Actions & Jetpack Glance (Android 13+)"
+service_endpoint: "N/A (on-device intent handling & UniFFI JNI)"
+
+# ============================================================
+# CORE ANDROID ASSISTANT INTENTS & APPACTIONS
+# ============================================================
+
+intents:
+  - id: "CreateNoteIntent"
+    display_name: "Capture Thought"
+    description: "Captures a thought or note via Google Assistant CREATE_NOTE BII"
+    category: "capture"
+    parameters:
+      - name: "content"
+        type: "String"
+        required: true
+        description: "Transcribed note or thought text"
+      - name: "tags"
+        type: "List<String>"
+        required: false
+        description: "Optional category tags"
+
+  - id: "GetAgendaIntent"
+    display_name: "Get Daily Agenda"
+    description: "Queries today's calendar and high-priority tasks via GET_ITEM_LIST BII"
+    category: "query"
+    parameters:
+      - name: "timeframe"
+        type: "String"
+        enum: ["today", "tomorrow", "this_week"]
+        required: true
+        default: "today"
+
+  - id: "StartFocusSessionIntent"
+    display_name: "Start Focus Session"
+    description: "Starts a focus interval with an ongoing notification and status bar chip"
+    category: "activity"
+    parameters:
+      - name: "duration_min"
+        type: "Integer"
+        required: true
+        default: 25
+
+  - id: "LogHabitIntent"
+    display_name: "Log Habit Completion"
+    description: "Records completion of a tracked daily habit via Assistant or Wear OS Tile"
+    category: "habits"
+    parameters:
+      - name: "habit_id"
+        type: "String"
+        required: true
+
+# ============================================================
+# APPSEARCH LOCAL INDEXING SCHEMAS
+# ============================================================
+
+appsearch_schemas:
+  - schema_type: "ThoughtDocument"
+    description: "On-device AppSearch index representation of a Personal OS thought"
+    properties:
+      - name: "id"
+        type: "String"
+        indexed: true
+      - name: "title"
+        type: "String"
+        indexed: true
+        tokenizer: "VERBATIM"
+      - name: "content"
+        type: "String"
+        indexed: true
+        tokenizer: "PLAIN"
+      - name: "tags"
+        type: "List<String>"
+        indexed: true
+
+  - schema_type: "TaskDocument"
+    description: "On-device AppSearch index representation of a project task"
+    properties:
+      - name: "id"
+        type: "String"
+        indexed: true
+      - name: "title"
+        type: "String"
+        indexed: true
+        tokenizer: "PLAIN"
+      - name: "priority"
+        type: "Integer"
+        indexed: true
+      - name: "is_completed"
+        type: "Boolean"
+        indexed: true
+
+# ============================================================
+# JETPACK GLANCE WIDGET PAYLOADS
+# ============================================================
+
+glance_widgets:
+  - widget_id: "AgendaGlanceWidget"
+    description: "Daily agenda and high-priority sprint tasks widget"
+    payload_schema:
+      type: "object"
+      required: ["date", "tasks", "meetings"]
+      properties:
+        date: { type: "string" }
+        tasks:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              id: { type: "string" }
+              title: { type: "string" }
+              priority: { type: "integer" }
+        meetings:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title: { type: "string" }
+              start_time: { type: "string" }
+
+  - widget_id: "HabitTrackerGlanceWidget"
+    description: "Interactive habit streak widget with single-tap completion"
+    payload_schema:
+      type: "object"
+      required: ["habits"]
+      properties:
+        habits:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              id: { type: "string" }
+              name: { type: "string" }
+              streak: { type: "integer" }
+              completed_today: { type: "boolean" }

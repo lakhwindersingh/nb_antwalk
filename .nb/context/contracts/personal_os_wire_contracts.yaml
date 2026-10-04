@@ -1,9 +1,59 @@
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 domain: "personal_os"
 service_endpoint: "/api/v1/personal_os"
-description: "Core IPC/REST/MCP wire contracts for Personal OS 8-pillar architecture"
+description: "Core IPC/REST/MCP wire contracts for Personal OS 8-pillar architecture + Meta-Orchestrator"
 
 pillars:
+  - id: "orchestration"
+    description: "Meta-orchestrator semantic intent classification and processor routing subsystem"
+    methods:
+      - name: "classify_intent"
+        description: "Classify incoming user request into primary/secondary intents with confidence scoring"
+        input_schema:
+          type: "object"
+          required: ["request_text"]
+          properties:
+            request_text: { type: "string" }
+            context_summary: { type: "object" }
+        output_schema:
+          type: "object"
+          properties:
+            primary_intent: { type: "string" }
+            secondary_intents: { type: "array", items: { type: "string" } }
+            complexity: { type: "string", enum: ["simple", "moderate", "complex", "exploratory"] }
+            confidence: { type: "number" }
+            suggested_processors: { type: "array", items: { type: "object" } }
+
+      - name: "route_request"
+        description: "Dispatch request across registered domain processors with dependency sequencing"
+        input_schema:
+          type: "object"
+          required: ["request_text"]
+          properties:
+            request_text: { type: "string" }
+            options: { type: "object" }
+        output_schema:
+          type: "object"
+          properties:
+            execution_id: { type: "string" }
+            status: { type: "string" }
+            routed_processors: { type: "array", items: { type: "string" } }
+
+      - name: "list_processors"
+        description: "List all registered subsystem processors and execution telemetry"
+        input_schema:
+          type: "object"
+          properties:
+            filter_category: { type: "string" }
+        output_schema:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              processor_id: { type: "string" }
+              capabilities: { type: "array", items: { type: "string" } }
+              health_status: { type: "string" }
+
   - id: "projects"
     description: "Workspace, repository, and task management subsystem"
     methods:
@@ -58,6 +108,34 @@ pillars:
             branch: { type: "string" }
             expires_at: { type: "string", format: "date-time" }
 
+      - name: "execute_task_dag"
+        description: "Execute a Petgraph task DAG with dependency constraints"
+        input_schema:
+          type: "object"
+          required: ["project_id", "task_ids"]
+          properties:
+            project_id: { type: "string" }
+            task_ids: { type: "array", items: { type: "string" } }
+        output_schema:
+          type: "object"
+          properties:
+            dag_execution_id: { type: "string" }
+            status: { type: "string" }
+
+      - name: "sync_external"
+        description: "Bidirectional task sync with external providers (GitHub/Linear)"
+        input_schema:
+          type: "object"
+          required: ["project_id", "provider"]
+          properties:
+            project_id: { type: "string" }
+            provider: { type: "string", enum: ["github", "linear"] }
+        output_schema:
+          type: "object"
+          properties:
+            synced_count: { type: "integer" }
+            conflicts: { type: "array", items: { type: "string" } }
+
       - name: "track_task"
         description: "Create or update project task"
         input_schema:
@@ -88,6 +166,7 @@ pillars:
             file_path: { type: "string" }
             extract_text: { type: "boolean", default: true }
             generate_embedding: { type: "boolean", default: true }
+            tags: { type: "array", items: { type: "string" } }
         output_schema:
           type: "object"
           properties:
@@ -96,53 +175,48 @@ pillars:
             mime_type: { type: "string" }
             size_bytes: { type: "integer" }
 
-      - name: "search_hybrid"
-        description: "Perform hybrid BM25 + vector search across indexed files"
+      - name: "get_metadata"
+        description: "Retrieve metadata and reference counts for content-addressed blob"
         input_schema:
           type: "object"
-          required: ["query"]
+          required: ["blake3_hash"]
           properties:
-            query: { type: "string" }
-            limit: { type: "integer", default: 10, maximum: 100 }
-            mime_type_filter: { type: "array", items: { type: "string" } }
-            semantic_weight: { type: "number", minimum: 0.0, maximum: 1.0, default: 0.5 }
-        output_schema:
-          type: "array"
-          items:
-            type: "object"
-            properties:
-              file_id: { type: "string" }
-              file_path: { type: "string" }
-              score: { type: "number" }
-              snippet: { type: "string" }
-
-      - name: "deduplicate"
-        description: "Find duplicate files by content hash"
-        input_schema:
-          type: "object"
-          properties:
-            directory: { type: "string" }
-        output_schema:
-          type: "array"
-          items:
-            type: "object"
-            properties:
-              blake3_hash: { type: "string" }
-              file_paths: { type: "array", items: { type: "string" } }
-              size_bytes: { type: "integer" }
-
-      - name: "get_blob"
-        description: "Retrieve file content by hash or ID"
-        input_schema:
-          type: "object"
-          properties:
-            file_id: { type: "string" }
             blake3_hash: { type: "string" }
+        output_schema:
+          type: "object"
+          properties:
+            blake3_hash: { type: "string" }
+            size_bytes: { type: "integer" }
+            ref_count: { type: "integer" }
+            mime_type: { type: "string" }
+
+      - name: "query_cas_blob"
+        description: "Inspect extracted text content of a CAS blob"
+        input_schema:
+          type: "object"
+          required: ["blake3_hash"]
+          properties:
+            blake3_hash: { type: "string" }
+            max_bytes: { type: "integer", default: 1048576 }
         output_schema:
           type: "object"
           properties:
             content: { type: "string" }
             mime_type: { type: "string" }
+
+      - name: "run_ocr"
+        description: "Run OCR on stored image/PDF blob"
+        input_schema:
+          type: "object"
+          required: ["blake3_hash"]
+          properties:
+            blake3_hash: { type: "string" }
+            language: { type: "string", default: "eng" }
+        output_schema:
+          type: "object"
+          properties:
+            extracted_text: { type: "string" }
+            confidence: { type: "number" }
 
   - id: "thoughts"
     description: "Zettelkasten knowledge graph and thought capture subsystem"
@@ -197,18 +271,33 @@ pillars:
               similarity: { type: "number" }
               snippet: { type: "string" }
 
-      - name: "daily_journal"
-        description: "Create or retrieve today's daily journal entry"
+      - name: "evaluate_actionability"
+        description: "Evaluate actionability and ambiguity scores for a thought"
         input_schema:
           type: "object"
+          required: ["thought_id"]
           properties:
-            date: { type: "string", format: "date" }
+            thought_id: { type: "string" }
         output_schema:
           type: "object"
           properties:
+            actionability_score: { type: "number" }
+            ambiguity_score: { type: "number" }
+            suggested_action: { type: "string" }
+
+      - name: "synthesize_project"
+        description: "Compile thought into an actionable project proposal and task DAG"
+        input_schema:
+          type: "object"
+          required: ["thought_id"]
+          properties:
             thought_id: { type: "string" }
-            date: { type: "string" }
-            content: { type: "string" }
+            target_repo: { type: "string" }
+        output_schema:
+          type: "object"
+          properties:
+            project_proposal_id: { type: "string" }
+            tasks_synthesized: { type: "integer" }
 
   - id: "activities"
     description: "Calendar, habit tracking, and life telemetry subsystem"
@@ -227,6 +316,22 @@ pillars:
             events_imported: { type: "integer" }
             last_sync: { type: "string", format: "date-time" }
 
+      - name: "schedule_block"
+        description: "Allocate focus block checking for calendar conflicts"
+        input_schema:
+          type: "object"
+          required: ["title", "start_time", "duration_min"]
+          properties:
+            title: { type: "string" }
+            start_time: { type: "string", format: "date-time" }
+            duration_min: { type: "integer" }
+            category: { type: "string" }
+        output_schema:
+          type: "object"
+          properties:
+            activity_id: { type: "string" }
+            conflicts_detected: { type: "array", items: { type: "string" } }
+
       - name: "log_habit"
         description: "Record a habit completion"
         input_schema:
@@ -243,23 +348,6 @@ pillars:
             current_streak: { type: "integer" }
             longest_streak: { type: "integer" }
 
-      - name: "record_telemetry"
-        description: "Log activity telemetry (focus sessions, app usage)"
-        input_schema:
-          type: "object"
-          required: ["category", "start_time"]
-          properties:
-            category: { type: "string", enum: ["meeting", "focus_work", "exercise", "personal", "rest"] }
-            title: { type: "string" }
-            start_time: { type: "string", format: "date-time" }
-            end_time: { type: "string", format: "date-time" }
-            notes: { type: "string" }
-        output_schema:
-          type: "object"
-          properties:
-            activity_id: { type: "string" }
-            duration_minutes: { type: "integer" }
-
       - name: "get_daily_agenda"
         description: "Retrieve daily schedule and priorities"
         input_schema:
@@ -275,7 +363,7 @@ pillars:
             habit_reminders: { type: "array", items: { type: "object" } }
 
   - id: "workflows"
-    description: "Declarative async workflow and routine execution subsystem"
+    description: "Declarative async workflow and durable saga subsystem"
     methods:
       - name: "dispatch_dag"
         description: "Execute a workflow DAG"
@@ -291,52 +379,46 @@ pillars:
             run_id: { type: "string" }
             status: { type: "string", enum: ["queued", "running", "success", "failed"] }
 
-      - name: "schedule_cron"
-        description: "Schedule a recurring workflow"
+      - name: "dispatch_saga"
+        description: "Dispatch a crash-resilient saga workflow with compensation steps"
         input_schema:
           type: "object"
-          required: ["workflow_id", "cron_expression"]
+          required: ["saga_name", "steps"]
           properties:
-            workflow_id: { type: "string" }
-            cron_expression: { type: "string" }
-            is_active: { type: "boolean", default: true }
+            saga_name: { type: "string" }
+            steps: { type: "array", items: { type: "object" } }
         output_schema:
           type: "object"
           properties:
-            schedule_id: { type: "string" }
-            next_run_at: { type: "string", format: "date-time" }
-
-      - name: "poll_routine"
-        description: "Check status of a workflow execution"
-        input_schema:
-          type: "object"
-          required: ["run_id"]
-          properties:
-            run_id: { type: "string" }
-        output_schema:
-          type: "object"
-          properties:
-            run_id: { type: "string" }
+            saga_id: { type: "string" }
             status: { type: "string" }
-            progress: { type: "number", minimum: 0.0, maximum: 1.0 }
-            error: { type: "string" }
 
-      - name: "list_runs"
-        description: "List workflow execution history"
+      - name: "get_saga_status"
+        description: "Query step execution, checkpoints, and rollback status for a saga"
         input_schema:
           type: "object"
+          required: ["saga_id"]
           properties:
-            workflow_id: { type: "string" }
-            limit: { type: "integer", default: 20, maximum: 100 }
+            saga_id: { type: "string" }
         output_schema:
-          type: "array"
-          items:
-            type: "object"
-            properties:
-              run_id: { type: "string" }
-              workflow_id: { type: "string" }
-              status: { type: "string" }
-              started_at: { type: "string", format: "date-time" }
+          type: "object"
+          properties:
+            saga_id: { type: "string" }
+            current_step: { type: "integer" }
+            status: { type: "string" }
+
+      - name: "trigger_routine"
+        description: "Trigger a scheduled routine (morning_brief, evening_reflection, weekly_hygiene)"
+        input_schema:
+          type: "object"
+          required: ["routine"]
+          properties:
+            routine: { type: "string", enum: ["morning_brief", "evening_reflection", "weekly_hygiene"] }
+        output_schema:
+          type: "object"
+          properties:
+            output_markdown: { type: "string" }
+            artifacts: { type: "array", items: { type: "string" } }
 
   - id: "credentials"
     description: "Zero-knowledge encrypted vault and secret leasing subsystem"
@@ -359,7 +441,7 @@ pillars:
             secret_value: { type: "string", description: "Memory-scrubbed on drop" }
 
       - name: "revoke_lease"
-        description: "Revoke an active credential lease"
+        description: "Revoke an active credential lease and scrub memory"
         input_schema:
           type: "object"
           required: ["lease_id"]
@@ -370,116 +452,104 @@ pillars:
           properties:
             revoked: { type: "boolean" }
 
-      - name: "store_secret"
-        description: "Store a new encrypted secret in the vault"
-        input_schema:
-          type: "object"
-          required: ["name", "secret_value", "item_type"]
-          properties:
-            name: { type: "string" }
-            secret_value: { type: "string" }
-            item_type: { type: "string", enum: ["api_key", "password", "token", "certificate"] }
-        output_schema:
-          type: "object"
-          properties:
-            vault_item_id: { type: "string" }
-            created: { type: "boolean" }
-
-      - name: "audit_access"
-        description: "Retrieve vault access audit log"
+      - name: "audit_trail"
+        description: "Retrieve cryptographically signed vault access audit log"
         input_schema:
           type: "object"
           properties:
             secret_name: { type: "string" }
-            since: { type: "string", format: "date-time" }
             limit: { type: "integer", default: 50, maximum: 200 }
         output_schema:
           type: "array"
           items:
             type: "object"
             properties:
-              lease_id: { type: "string" }
-              agent_id: { type: "string" }
-              acquired_at: { type: "string", format: "date-time" }
-              revoked_at: { type: "string", format: "date-time" }
+              entry_id: { type: "string" }
+              operation: { type: "string" }
+              timestamp: { type: "string", format: "date-time" }
+              signature: { type: "string" }
 
   - id: "interactions"
-    description: "Personal CRM and communication tracking subsystem"
+    description: "Personal CRM, diarization, and communication tracking subsystem"
     methods:
-      - name: "log_interaction"
-        description: "Record a communication or meeting"
+      - name: "log_meeting"
+        description: "Process meeting transcript, extract diarized debrief, decisions, and action items"
         input_schema:
           type: "object"
-          required: ["interaction_type", "summary"]
+          required: ["title", "raw_transcript"]
+          properties:
+            title: { type: "string" }
+            raw_transcript: { type: "string" }
+            attendees: { type: "array", items: { type: "string" } }
+        output_schema:
+          type: "object"
+          properties:
+            interaction_id: { type: "string" }
+            decisions: { type: "array", items: { type: "string" } }
+            action_items: { type: "array", items: { type: "object" } }
+
+      - name: "get_context"
+        description: "Retrieve comprehensive contact timeline and context"
+        input_schema:
+          type: "object"
+          required: ["contact_id_or_name"]
+          properties:
+            contact_id_or_name: { type: "string" }
+        output_schema:
+          type: "object"
           properties:
             contact_id: { type: "string" }
-            interaction_type: { type: "string", enum: ["email", "call", "meeting", "message"] }
-            summary: { type: "string" }
-            key_decisions: { type: "array", items: { type: "string" } }
-            action_items: { type: "array", items: { type: "string" } }
-            occurred_at: { type: "string", format: "date-time" }
-        output_schema:
-          type: "object"
-          properties:
-            interaction_id: { type: "string" }
+            name: { type: "string" }
+            history: { type: "array", items: { type: "object" } }
 
-      - name: "search_contacts"
-        description: "Search contact database"
+      - name: "resolve_entity"
+        description: "Deduplicate contact or vendor entity using TF-IDF / Jaro-Winkler"
         input_schema:
           type: "object"
-          required: ["query"]
+          required: ["query_name"]
           properties:
-            query: { type: "string" }
-            limit: { type: "integer", default: 10, maximum: 50 }
-        output_schema:
-          type: "array"
-          items:
-            type: "object"
-            properties:
-              contact_id: { type: "string" }
-              name: { type: "string" }
-              email: { type: "string" }
-              organization: { type: "string" }
-              last_contacted_at: { type: "string", format: "date-time" }
-
-      - name: "record_meeting_debrief"
-        description: "Process meeting notes and extract structured data"
-        input_schema:
-          type: "object"
-          required: ["meeting_notes"]
-          properties:
-            meeting_notes: { type: "string" }
-            attendees: { type: "array", items: { type: "string" } }
-            meeting_date: { type: "string", format: "date-time" }
+            query_name: { type: "string" }
+            email: { type: "string" }
         output_schema:
           type: "object"
           properties:
-            interaction_id: { type: "string" }
-            extracted_action_items: { type: "array", items: { type: "object" } }
-            key_decisions: { type: "array", items: { type: "string" } }
+            canonical_id: { type: "string" }
+            match_confidence: { type: "number" }
 
   - id: "purchases"
-    description: "Financial ledger and subscription tracking subsystem"
+    description: "Financial ledger, subscription tracking, and HITL authorization subsystem"
     methods:
-      - name: "ingest_receipt"
-        description: "Process receipt image via OCR and extract transaction data"
+      - name: "log_expense"
+        description: "Log an expense transaction to double-entry ledger"
         input_schema:
           type: "object"
-          required: ["image_path"]
+          required: ["vendor", "amount_cents", "category"]
           properties:
-            image_path: { type: "string" }
+            vendor: { type: "string" }
+            amount_cents: { type: "integer" }
+            currency: { type: "string", default: "USD" }
             category: { type: "string" }
+        output_schema:
+          type: "object"
+          properties:
+            purchase_id: { type: "string" }
+
+      - name: "ingest_receipt"
+        description: "Process invoice/receipt via OCR"
+        input_schema:
+          type: "object"
+          required: ["file_path"]
+          properties:
+            file_path: { type: "string" }
         output_schema:
           type: "object"
           properties:
             purchase_id: { type: "string" }
             vendor: { type: "string" }
             amount_cents: { type: "integer" }
-            currency: { type: "string" }
-            purchased_at: { type: "string", format: "date-time" }
 
       - name: "audit_subscriptions"
-        description: "List active subscriptions and renewal dates"
+        description: "Audit recurring subscriptions and price increases"
         input_schema:
           type: "object"
           properties:
@@ -492,40 +562,56 @@ pillars:
               subscription_id: { type: "string" }
               vendor: { type: "string" }
               amount_cents: { type: "integer" }
-              billing_period: { type: "string" }
-              next_renewal_date: { type: "string", format: "date" }
-              days_until_renewal: { type: "integer" }
+              price_hike_detected: { type: "boolean" }
 
-      - name: "log_expense"
-        description: "Manually log an expense"
+      - name: "resolve_hitl"
+        description: "Submit interactive human decision for queued financial operation"
         input_schema:
           type: "object"
-          required: ["vendor", "amount_cents", "category"]
+          required: ["approval_id", "decision"]
           properties:
-            vendor: { type: "string" }
-            amount_cents: { type: "integer" }
-            currency: { type: "string", default: "USD" }
-            category: { type: "string" }
-            notes: { type: "string" }
-            purchased_at: { type: "string", format: "date-time" }
+            approval_id: { type: "string" }
+            decision: { type: "string", enum: ["approve", "reject"] }
         output_schema:
           type: "object"
           properties:
-            purchase_id: { type: "string" }
+            processed: { type: "boolean" }
+            ledger_block_hash: { type: "string" }
 
-      - name: "budget_status"
-        description: "Get current budget status across categories"
+  - id: "storage_and_search"
+    description: "Sub-15ms hybrid retrieval and vector embedding subsystem"
+    methods:
+      - name: "search_hybrid"
+        description: "Execute fused Tantivy BM25 + sqlite-vec hybrid query"
         input_schema:
           type: "object"
+          required: ["query"]
           properties:
-            period: { type: "string", enum: ["weekly", "monthly", "quarterly"], default: "monthly" }
+            query: { type: "string" }
+            filter_pillar: { type: "string" }
+            limit: { type: "integer", default: 10 }
+        output_schema:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              item_id: { type: "string" }
+              score: { type: "number" }
+              snippet: { type: "string" }
+
+  - id: "ledger_and_audit"
+    description: "Cryptographic Merkle state attestation subsystem"
+    methods:
+      - name: "verify_chain"
+        description: "Verify BLAKE3 / SHA-256 Merkle chain consistency"
+        input_schema:
+          type: "object"
         output_schema:
           type: "object"
           properties:
-            period: { type: "string" }
-            categories: { type: "array", items: { type: "object" } }
-            total_spent_cents: { type: "integer" }
-            total_budget_cents: { type: "integer" }
+            verified: { type: "boolean" }
+            block_count: { type: "integer" }
+            latest_hash: { type: "string" }
 
 security:
   authentication: "local_daemon_only"

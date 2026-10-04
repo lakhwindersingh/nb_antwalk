@@ -17,16 +17,17 @@ model_tiering_policy:
 # Layerable Context Engineering Plan: Personal OS (Rust-Based Agentic System)
 
 ### Executive Overview & Domain Grounding
-This document is the **Layerable Domain-Specific Context Engineering Plan** for **Personal OS**, an offline-first, high-concurrency, memory-safe agentic life operating system implemented in Rust. Layered directly onto the **Parent Master Context Engineering Framework** (`.nb/plan/master/parent-master-plan/concise.md`), it governs eight interconnected dimensions of digital life:
+This document is the **Layerable Domain-Specific Context Engineering Plan** for **Personal OS**, an offline-first, high-concurrency, memory-safe agentic life operating system implemented in Rust. Layered directly onto the **Parent Master Context Engineering Framework** (`.nb/plan/master/parent-master-plan/concise.md`), it governs eight interconnected dimensions of digital life coordinated by an autonomous meta-orchestrator:
 
 1. **Projects Subsystem**: Unified management of local code repositories, tasks, milestones, git worktrees, and external issue trackers.
 2. **Files Subsystem**: BLAKE3 content-addressable storage (CAS), directory watching (`notify`), text extraction, and hybrid vector/FTS indexing.
 3. **Thoughts Subsystem**: Quick captures, daily journals, Zettelkasten knowledge graphs, bidirectional wikilinks, and associative semantic recall.
 4. **Activities Subsystem**: Calendar sync (iCal/CalDAV), habit tracking, time-blocking, health metrics, and priority scheduling.
-5. **Workflows Subsystem**: Declarative async task DAGs (`tokio`), cron scheduling, event triggers, and autonomous agent loops.
+5. **Workflows Subsystem**: Declarative async task DAGs (`tokio`), durable saga execution, cron scheduling, event triggers, and autonomous agent loops.
 6. **Credentials Subsystem**: Zero-knowledge encrypted secret vault (Argon2id + ChaCha20-Poly1305), OS keychain integration, and memory-zeroized ephemeral leasing.
 7. **Interactions Subsystem**: Personal CRM, communication history (email, chat, meetings), context injection, and relationship follow-ups.
 8. **Purchases Subsystem**: Plain-text financial ledger, receipt OCR parsing, recurring subscription auditing, and budget alerts.
+9. **Meta-Orchestrator Subsystem**: Semantic intent classification, priority routing, dynamic agent instantiation, and multi-processor coordination.
 
 ---
 
@@ -44,6 +45,7 @@ This document is the **Layerable Domain-Specific Context Engineering Plan** for 
 │       └── financial_safety_rules.md          # HITL requirements for payments and purchases
 ├── agentic/
 │   ├── custom/agents/
+│   │   ├── agent_meta_orchestrator.yaml       # Semantic intent classification & processor router
 │   │   ├── agent_project_orchestrator.yaml    # Workspace, git worktree & task coordinator
 │   │   ├── agent_file_indexer.yaml            # BLAKE3 CAS & document parser daemon
 │   │   ├── agent_thought_synthesizer.yaml     # Knowledge graph & associative thought agent
@@ -53,15 +55,17 @@ This document is the **Layerable Domain-Specific Context Engineering Plan** for 
 │   │   ├── agent_crm_manager.yaml             # Contacts & communication debrief specialist
 │   │   └── agent_finance_tracker.yaml         # Expenses, subscriptions & receipt auditor
 │   └── custom/workflows/
+│       ├── wf_orchestrate_request.yaml        # Multi-processor request orchestration
 │       ├── wf_morning_brief.yaml              # Daily agenda, high-priority tasks & reminders
 │       ├── wf_file_ingestion.yaml             # Watcher event -> OCR -> Tantivy/Vector index
 │       └── wf_vault_credential_lease.yaml     # Scoped agent auth -> Zeroize drop workflow
 ├── workplace/
 │   ├── modules/
 │   │   ├── pos_core/                          # Shared domain entities, events & state store
-│   │   ├── pos_storage/                       # SQLite WAL + Tantivy + BLAKE3 blob storage
-│   │   ├── pos_vault/                         # Ring, Argon2id, Keyring & Zeroize credentials
-│   │   ├── pos_agents/                        # Actor runtime, MCP client/server & tool router
+│   │   ├── pos_storage/                       # SQLite WAL + Tantivy + BLAKE3 blob storage & MPSC batcher
+│   │   ├── pos_vault/                         # Ring, Argon2id, Keyring, Zeroize & BIP-39 recovery
+│   │   ├── pos_orchestrator/                  # Meta-orchestration layer & processor registry
+│   │   ├── pos_agents/                        # Actor runtime, MCP client/server & sandbox executor
 │   │   ├── pos_server/                        # Axum HTTP/WebSocket API daemon
 │   │   └── pos_cli/                           # Canonical `pos` terminal binary (clap v4)
 │   ├── shared/
@@ -87,6 +91,8 @@ schema_version: "1.0.0"
 domain: "personal_os"
 service_endpoint: "/api/v1/personal_os"
 pillars:
+  - id: "orchestration"
+    methods: ["classify_intent", "route_request", "register_processor", "aggregate_results"]
   - id: "projects"
     methods: ["list_workspaces", "sync_repo", "create_worktree", "track_task"]
   - id: "files"
@@ -117,6 +123,7 @@ pillars:
 
 | Agent ID | Name | Model Tier | Core Responsibility |
 |---|---|---|---|
+| `agent_meta_orchestrator` | Meta-Orchestrator | Tier_A | Intent classification, processor routing, resource allocation, synthesis |
 | `agent_project_orchestrator` | Project Manager | Tier_A | Workspaces, Git branch lifecycle, task decomposition, milestone tracking |
 | `agent_file_indexer` | File Indexer | Tier_B | BLAKE3 hashing, OCR, Tantivy tokenization, vector chunking |
 | `agent_thought_synthesizer` | Second Brain Synthesizer | Tier_A | Zettelkasten linking, concept extraction, daily reflection synthesis |

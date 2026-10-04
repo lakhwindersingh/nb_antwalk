@@ -50,20 +50,61 @@
    - Fast-forward merge enforcement with conflict detection
    - 60-minute timeout for full autonomous execution
 
+3. `.nb/agentic/custom/agents/agent_thought_synthesizer.yaml` (317 lines)
+4. `.nb/agentic/custom/agents/agent_plan_architect.yaml` (377 lines)
+5. `.nb/agentic/custom/agents/agent_autonomous_coder.yaml` (409 lines)
+   - Complete agent configurations with capabilities, wire contracts, and error handling
+   - Model configurations (temperature, tokens, reasoning effort)
+   - Agent-specific execution rules and prompt templates
+   - Realistic performance targets (60% autonomous success rate)
+
+6. `.nb/agentic/custom/rulesets/plan_derivation_invariants.md` (496 lines)
+   - 10 core invariants for thought→MVS→plan transformation
+   - Chain of custody, schema compliance, component completeness
+   - DAG acyclicity, testability verification, gap resolution
+   - Enforcement code examples and violation consequences
+
+7. `.nb/agentic/custom/rulesets/worktree_isolation_rules.md` (456 lines)
+   - 10 rules for ephemeral worktree lifecycle management
+   - Lease-based provisioning with 24-hour default, max 5 concurrent
+   - Atomic merge or full rollback (no partial merges)
+   - Commit traceability with execution metadata
+
 **Integration Points**:
 - Both workflows reference `thought_to_project_wire_contracts.yaml` for RPC calls
 - `wf_thought_to_plan` outputs feed directly into `wf_plan_to_cicd` inputs
+- Agent configurations implement all wire contract methods
+- Rulesets define invariants enforced throughout pipeline
 - Observability with audit trails at `.nb/logs/audit/`
 
-**Impact**: Provides executable orchestration for complete thought→plan→code→ship pipeline.
+**Impact**: Provides complete executable orchestration for thought→plan→code→ship pipeline with enforced invariants and isolation boundaries.
 
 ---
 
 ### 🚧 IN PROGRESS
 
-#### GAP-T2P-008: Actionability Score Algorithm Undefined
+#### GAP-T2P-003: Ambiguity Entropy Formula Unvalidated
 **Status**: IN PROGRESS  
 **Next Action**: Replace heuristic formula with LLM-based semantic checklist
+
+---
+
+#### GAP-T2P-008: Actionability Score Algorithm Undefined
+**Status**: CAN PROTOTYPE STANDALONE  
+**Next Action**: Implement LLM-based semantic evaluation (no blockers)
+
+**Implementation Ready**: Algorithm defined in `agent_thought_synthesizer.yaml` RULE-TS-03
+```yaml
+prompt_template: |
+  Evaluate if this thought is ready to become a software project.
+  
+  Rate 0.0-1.0 on these dimensions:
+  1. **Clear Goal**: Is the desired outcome explicitly stated?
+  2. **Technical Details**: Are APIs, data structures, or algorithms mentioned?
+  3. **Success Criteria**: Are acceptance criteria or metrics defined?
+  4. **Dependencies**: Are constraints or prerequisites identified?
+  5. **Bounded Scope**: Is the scope well-defined?
+```
 
 **Planned Implementation**:
 ```rust
@@ -74,23 +115,10 @@ pub struct ActionabilityEvaluator {
 
 impl ActionabilityEvaluator {
     pub async fn evaluate(&self, content: &str) -> Result<ActionabilityReport, Error> {
-        let prompt = format!(r#"
-Evaluate if this thought is ready to become a software project.
-
-Thought: {content}
-
-Rate 0.0-1.0 on these dimensions:
-1. Clear goal/outcome described
-2. Technical details present (APIs, data structures, algorithms)
-3. Success criteria defined
-4. Dependencies/constraints identified
-5. Scope is well-bounded (not too vague, not too large)
-
-Return JSON: {{"score": 0.0-1.0, "dimensions": {{...}}, "missing_elements": [...]}}
-"#);
-        
+        let prompt = ACTIONABILITY_PROMPT_TEMPLATE.replace("{content}", content);
         let response = self.llm_client.call(&prompt).await?;
-        // Parse JSON and return structured report
+        // Parse JSON: {"score": 0.0-1.0, "dimensions": {...}, "missing_elements": [...]}
+        Ok(serde_json::from_str(&response)?)
     }
 }
 ```
@@ -98,42 +126,40 @@ Return JSON: {{"score": 0.0-1.0, "dimensions": {{...}}, "missing_elements": [...
 ---
 
 #### GAP-T2P-003: Ambiguity Entropy Formula Unvalidated
-**Status**: IN PROGRESS  
-**Next Action**: Replace mathematical entropy with pragmatic checklist
+**Status**: CAN PROTOTYPE STANDALONE  
+**Next Action**: Replace mathematical entropy with LLM-based semantic evaluation (no blockers)
 
 **Planned Implementation**:
 ```rust
 // workplace/modules/pos_thoughts/src/ambiguity.rs
-pub struct AmbiguityChecker {
-    checklist: Vec<AmbiguityCheck>,
+pub struct AmbiguityEvaluator {
+    llm_client: LLMClient,
 }
 
-pub struct AmbiguityCheck {
-    pub id: &'static str,
-    pub description: &'static str,
-    pub required: bool,
-}
-
-impl AmbiguityChecker {
-    pub fn evaluate(&self, ast: &CommonMarkAST) -> AmbiguityReport {
-        let checks = vec![
-            ("has_concrete_examples", self.has_code_blocks(ast)),
-            ("has_data_schema", self.has_structured_data(ast)),
-            ("has_success_criteria", self.has_acceptance_criteria(ast)),
-            ("has_bounded_scope", self.scope_is_reasonable(ast)),
-        ];
-        
-        let passed_count = checks.iter().filter(|(_, passed)| *passed).count();
-        let score = passed_count as f64 / checks.len() as f64;
-        
-        AmbiguityReport {
-            score: 1.0 - score,  // Higher = more ambiguous
-            checks,
-            missing_elements: self.identify_missing(ast),
-        }
+impl AmbiguityEvaluator {
+    pub async fn evaluate(&self, content: &str) -> Result<AmbiguityReport, Error> {
+        let prompt = AMBIGUITY_PROMPT_TEMPLATE.replace("{content}", content);
+        let response = self.llm_client.call(&prompt).await?;
+        // Parse JSON: {"score": 0.0-1.0, "vague_elements": [...], "questions_to_ask": [...]}
+        Ok(serde_json::from_str(&response)?)
     }
 }
 ```
+
+**Evaluation Template** (defined in `agent_thought_synthesizer.yaml` RULE-TS-02):
+```yaml
+prompt_template: |
+  Identify vague or ambiguous elements in this thought.
+  
+  Check for:
+  1. **Undefined Terms**: Are key concepts explained or referenced?
+  2. **Missing Specifics**: Are there weasel words ("better", "faster", "improved")?
+  3. **Unclear Scope**: Is it clear what's in/out of scope?
+  4. **Unspecified Details**: Are data structures, APIs, or interfaces mentioned?
+  
+  Return JSON: {"score": 0.0-1.0, "vague_elements": [...], "questions_to_ask": [...]}
+```
+
 
 ---
 

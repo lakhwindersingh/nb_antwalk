@@ -116,3 +116,34 @@ cargo test -p pos_proactive --test synthetic_spending_spike_test
 # 3. Verify anti-nagging rate limiter invariants
 cargo test -p pos_proactive --test rate_limiter_invariants_test
 ```
+
+---
+
+## 5. Interaction Points & Cross-Pillar Integration
+
+For the comprehensive system-wide interaction topology and loose-ends analysis, refer to [**`.nb/plan/INTERACTION_POINTS.md`**](../../INTERACTION_POINTS.md).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant EventBus as Tokio Broadcast EventBus (pos::events::*)
+    participant Baseline as Baseline Aggregator (pos_baseline)
+    participant Anomaly as Anomaly Detector (pos_anomaly)
+    participant Nudge as Intervention Scheduler (pos_nudge)
+    participant Surfaces as Interaction Surfaces (CLI / Siri / Web)
+
+    EventBus->>Baseline: Ingest Domain Event (e.g. pos::purchases::created)
+    Baseline->>Baseline: Update Rolling Statistics (mean, std_dev)
+    EventBus->>Anomaly: Stream Real-Time Event for Outlier Check
+    Anomaly->>Anomaly: Compute Z-Score: (x - μ) / σ
+    alt Deviation |Z| > 2.0 (Confidence > 85%)
+        Anomaly->>Nudge: Trigger Anomaly Alert Candidate
+        Nudge->>Nudge: Check Anti-Nagging Invariants (Quiet Hours, Max 2/Day)
+        opt Invariant Passed
+            Nudge->>EventBus: Broadcast pos::nudge::created
+            EventBus->>Surfaces: Deliver Visual / Audible Intervention
+            Surfaces-->>Nudge: User Action (Accept / Dismiss / Snooze)
+            Nudge->>Baseline: Recalibrate Anomaly Sensitivity Threshold
+        end
+    end
+```

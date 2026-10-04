@@ -116,20 +116,36 @@ Native iOS/macOS integration using SiriKit App Intents, Announce Notifications, 
 
 ---
 
-### 4. 🔜 Proactive Intelligence & Anomaly Detection
-**Status**: Planned  
+### 4. ✅ Proactive Intelligence & Anomaly Detection
+**Status**: Specification Complete  
 **Path**: `.nb/plan/extensions/proactive_intelligence/`  
 **Capabilities**: E-PROACT-01 to E-PROACT-06
 
 System learns usage patterns and surfaces anomalies proactively. Detects unusual behavior (spending spikes, missed habits, uncharacteristic inactivity) and suggests interventions.
 
-**Key Features**:
-- Pattern learning across all 8 pillars
-- Anomaly detection with confidence scoring
-- Proactive insights without being asked
-- Context-aware nudges and reminders
+**Key Files**:
+- [README.md](./proactive_intelligence/README.md) - Overview and scenarios
+- [MANIFEST.yaml](./proactive_intelligence/MANIFEST.yaml) - Metadata and dependencies
+- [concise.md](./proactive_intelligence/concise.md) - Layerable specification & algorithms
 
 **Impact**: High | **Effort**: High | **Integration**: All 8 pillars
+
+---
+
+### 5. ✅ Thought-to-Project Autonomous Plan Pipeline
+**Status**: Specification Complete  
+**Path**: `.nb/plan/extensions/thought_to_project/`  
+**Capabilities**: E-THOUGHT-01 to E-THOUGHT-08
+
+Autonomous bridge connecting `pos_thoughts` (Zettelkasten CommonMark AST) to `pos_projects` (Git2 / Worktrees / Task DAG) and the Percipience Autonomous CI/CD Triad. Evaluates thought actionability, derives MVS specifications, compiles layerable plans, provisions ephemeral worktrees, and executes closed-loop TDD self-healing to automatically ship ideas into production.
+
+**Key Files**:
+- [README.md](./thought_to_project/README.md) - Pipeline overview & CLI usage
+- [MANIFEST.yaml](./thought_to_project/MANIFEST.yaml) - Capabilities & success metrics
+- [concise.md](./thought_to_project/concise.md) - Layerable domain specification
+- [detailed.md](./thought_to_project/detailed.md) - Comprehensive implementation blueprint
+
+**Impact**: Critical | **Effort**: Medium | **Integration**: Thoughts, Projects, Workflows, CI/CD
 
 ---
 

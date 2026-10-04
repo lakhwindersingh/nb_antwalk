@@ -30,10 +30,12 @@ Welcome to the **Percipience Plan Space** (`.nb/plan/`). This directory houses t
 │   ├── voice_interface/         # P0: Local Whisper audio pipeline & speech capture
 │   ├── native_apple_siri/       # P0: iOS/macOS SiriKit App Intents & Live Activities
 │   ├── proactive_intelligence/  # P0: Baseline learning & anomaly detection
-│   └── meeting_intelligence/    # P1: Meeting auto-join, diarization & summaries
+│   ├── meeting_intelligence/    # P1: Meeting auto-join, diarization & summaries
+│   └── thought_to_project/      # P0: Thought-to-Project Autonomous Plan & CI/CD Pipeline
 ├── templates/                   # Standard Domain & Extension Templates
 │   └── custom_domain_layer_template.md # Layerable domain engineering template
 ├── COMPLETE_SUMMARY.md          # Complete documentation summary & logical Mermaid diagrams
+├── INTERACTION_POINTS.md        # Master interaction mechanisms & loose ends analysis
 └── NATIVE_SIRI_SUMMARY.md       # Summary of Native Apple Siri integration
 ```
 

@@ -1,0 +1,46 @@
+plan_id: extension_thought_to_project
+plan_name: Thought-to-Project Autonomous Plan Pipeline Extension
+version: 1.0.0
+capability_rating: Extension Specialist (E-THOUGHT-01 to E-THOUGHT-08)
+plan_type: layerable_extension_plan
+status: specification
+parent_plan: .nb/plan/personal_os/concise.md
+master_framework: .nb/plan/master/parent-master-plan/concise.md
+dependencies:
+  - domain_personal_os (>= 1.0.0)
+  - master_parent_framework (>= 7.5.0)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Overview, end-to-end lifecycle flow, CLI commands, and integration guide
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Layerable domain specification, Quad-Space mapping, wire contracts, and CI/CD bridge
+  detailed:
+    path: detailed.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Exhaustive implementation blueprint, AST parsing algorithms, Petgraph DAGs, and worktree isolation
+key_capabilities:
+  - E-THOUGHT-01: Thought AST Parsing & Actionability Evaluation (CommonMark AST to semantic readiness score)
+  - E-THOUGHT-02: Autonomous MVS Input Derivation (Normalizes unstructured notes into formal specifications)
+  - E-THOUGHT-03: Ambiguity Entropy Analysis & HITL Clarification RFCs (Resolves vague requirements)
+  - E-THOUGHT-04: Domain Layer Plan Generator (Auto-generates custom domain layer plans per template)
+  - E-THOUGHT-05: Petgraph Task DAG Decomposition (Compiles plan into directed acyclic dependency graphs)
+  - E-THOUGHT-06: Ephemeral Git Worktree Provisioning (Isolates subagents in branch sandboxes via git2)
+  - E-THOUGHT-07: Autonomous CI/CD Triad Execution Bridge (Closed-loop TDD self-healing and Merkle audit)
+  - E-THOUGHT-08: Bidirectional State Synchronization & Knowledge Closure (Backlinks commits/PRs to original thought)
+integration_crates:
+  - pos_thoughts
+  - pos_projects
+  - pos_workflows
+  - pos_agents
+success_metrics:
+  thought_to_spec_latency_p95: "< 4.5s for 1,000-word conceptual note"
+  plan_compliance_rate: "100% adherence to custom_domain_layer_template.md"
+  cicd_autonomous_pass_rate: ">= 85% first-pass completion with <= 3 bounded repairs"
+  zero_drift_merkle_guarantee: "100% cryptographic state sealing in context_ledger.yaml"

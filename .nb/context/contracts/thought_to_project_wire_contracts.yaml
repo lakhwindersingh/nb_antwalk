@@ -1,0 +1,468 @@
+schema_version: "1.0.0"
+domain: "thought_to_project"
+contract_type: "RPC"
+service_endpoint: "/api/v1/thought_to_project"
+
+description: |
+  Wire contract defining the interface between pos_thoughts (Zettelkasten)
+  and pos_projects (Git/Task DAG) pillars for autonomous plan generation.
+
+methods:
+  - name: "evaluate_thought_readiness"
+    description: "Parses thought AST and computes actionability score to determine promotion readiness"
+    input_schema:
+      type: "object"
+      required: ["thought_id", "content_markdown"]
+      properties:
+        thought_id:
+          type: "string"
+          format: "uuid"
+          description: "Unique identifier for the thought being evaluated"
+        content_markdown:
+          type: "string"
+          maxLength: 102400  # 100 KB max thought size
+          description: "Full CommonMark content of the thought"
+        user_context:
+          type: "object"
+          description: "Optional user preferences for evaluation thresholds"
+          properties:
+            min_actionability_threshold:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+              default: 0.65
+            ambiguity_tolerance:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+              default: 0.40
+    output_schema:
+      type: "object"
+      required: ["actionability_score", "readiness_status", "extracted_entities", "ambiguity_score"]
+      properties:
+        actionability_score:
+          type: "number"
+          minimum: 0.0
+          maximum: 1.0
+          description: "Composite readiness score based on structure, technical detail, and clarity"
+        readiness_status:
+          type: "string"
+          enum: ["ready", "needs_clarification", "too_vague", "too_complex"]
+          description: "Human-readable promotion readiness status"
+        extracted_entities:
+          type: "object"
+          properties:
+            headings:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  level: { type: "integer", minimum: 1, maximum: 6 }
+                  text: { type: "string" }
+            code_blocks:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  language: { type: "string" }
+                  content: { type: "string" }
+                  line_start: { type: "integer" }
+            wikilinks:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  target: { type: "string" }
+                  alias: { type: "string" }
+            technical_concepts:
+              type: "array"
+              items: { type: "string" }
+              description: "Extracted technical nouns and domain terms"
+        ambiguity_score:
+          type: "number"
+          minimum: 0.0
+          maximum: 1.0
+          description: "Checklist-based ambiguity score (0.0=clear, 1.0=very ambiguous)"
+        ambiguity_details:
+          type: "object"
+          properties:
+            has_clear_goal: { type: "boolean" }
+            has_technical_details: { type: "boolean" }
+            has_success_criteria: { type: "boolean" }
+            has_bounded_scope: { type: "boolean" }
+            has_dependencies_identified: { type: "boolean" }
+            missing_elements:
+              type: "array"
+              items: { type: "string" }
+              description: "List of missing critical elements"
+        recommendation:
+          type: "string"
+          enum: ["promote_immediately", "request_clarification", "refine_and_retry", "not_suitable"]
+
+  - name: "generate_clarification_rfc"
+    description: "Creates interactive RFC when thought ambiguity exceeds threshold"
+    input_schema:
+      type: "object"
+      required: ["thought_id", "ambiguity_details"]
+      properties:
+        thought_id: { type: "string", format: "uuid" }
+        ambiguity_details:
+          type: "object"
+          description: "Output from evaluate_thought_readiness"
+        rfc_template:
+          type: "string"
+          enum: ["standard", "technical", "minimal"]
+          default: "standard"
+    output_schema:
+      type: "object"
+      required: ["rfc_id", "rfc_path", "questions"]
+      properties:
+        rfc_id: { type: "string", format: "uuid" }
+        rfc_path:
+          type: "string"
+          description: "File path to generated RFC in user/hitl/clarifications/"
+        questions:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              question_id: { type: "string" }
+              question_text: { type: "string" }
+              question_type: { type: "string", enum: ["text", "choice", "checklist"] }
+              required: { type: "boolean" }
+              options:
+                type: "array"
+                items: { type: "string" }
+        expires_at:
+          type: "string"
+          format: "date-time"
+          description: "RFC expires after 7 days if not answered"
+
+  - name: "derive_mvs_specification"
+    description: "Synthesizes Minimum Viable Set (MVS) YAML from thought content"
+    input_schema:
+      type: "object"
+      required: ["thought_id", "clarified_content"]
+      properties:
+        thought_id: { type: "string", format: "uuid" }
+        clarified_content:
+          type: "string"
+          description: "Original thought + RFC answers (if applicable)"
+        target_domain:
+          type: "string"
+          description: "Auto-detected or user-specified domain (storage, api, frontend, etc.)"
+        mvs_template:
+          type: "string"
+          description: "Template to use for MVS generation"
+    output_schema:
+      type: "object"
+      required: ["mvs_id", "mvs_path", "domain_detected", "confidence"]
+      properties:
+        mvs_id: { type: "string", format: "uuid" }
+        mvs_path:
+          type: "string"
+          description: "Path to generated MVS YAML in user/inputs/"
+        domain_detected:
+          type: "string"
+          description: "Primary technical domain (storage, networking, ui, ml, etc.)"
+        mvs_content:
+          type: "object"
+          description: "Structured MVS specification"
+          properties:
+            domain: { type: "string" }
+            components:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  name: { type: "string" }
+                  type: { type: "string" }
+                  dependencies: { type: "array", items: { type: "string" } }
+            constraints:
+              type: "array"
+              items: { type: "string" }
+            acceptance_criteria:
+              type: "array"
+              items: { type: "string" }
+        confidence:
+          type: "number"
+          minimum: 0.0
+          maximum: 1.0
+          description: "Confidence in auto-generated MVS (< 0.70 requires HITL review)"
+
+  - name: "compile_layerable_plan"
+    description: "Generates standardized domain plan per custom_domain_layer_template.md"
+    input_schema:
+      type: "object"
+      required: ["mvs_path", "domain_slug", "plan_title"]
+      properties:
+        mvs_path:
+          type: "string"
+          description: "Path to validated MVS YAML specification"
+        domain_slug:
+          type: "string"
+          pattern: "^[a-z0-9_]+$"
+          description: "Kebab-case domain identifier (e.g., 'vector_cache')"
+        plan_title:
+          type: "string"
+          maxLength: 100
+          description: "Human-readable plan title"
+        template_overrides:
+          type: "object"
+          description: "Optional template placeholder overrides"
+    output_schema:
+      type: "object"
+      required: ["plan_id", "plan_path", "contract_paths", "agent_names"]
+      properties:
+        plan_id: { type: "string", format: "uuid" }
+        plan_path:
+          type: "string"
+          description: "Path to generated plan in .nb/plan/extensions/{slug}/concise.md"
+        contract_paths:
+          type: "array"
+          items: { type: "string" }
+          description: "Generated wire contract files in .nb/context/contracts/"
+        agent_names:
+          type: "array"
+          items: { type: "string" }
+          description: "Specialist agents defined in plan"
+        validation_status:
+          type: "string"
+          enum: ["valid", "warnings", "errors"]
+        validation_issues:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              severity: { type: "string", enum: ["error", "warning", "info"] }
+              message: { type: "string" }
+              location: { type: "string" }
+
+  - name: "decompose_task_dag"
+    description: "Builds Petgraph directed acyclic graph from plan requirements"
+    input_schema:
+      type: "object"
+      required: ["plan_path", "project_id"]
+      properties:
+        plan_path: { type: "string" }
+        project_id:
+          type: "string"
+          format: "uuid"
+          description: "Target project in pos_projects"
+        decomposition_strategy:
+          type: "string"
+          enum: ["automatic", "template_based", "llm_assisted"]
+          default: "llm_assisted"
+        max_task_count:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 20
+    output_schema:
+      type: "object"
+      required: ["dag_id", "task_count", "execution_phases", "estimated_duration"]
+      properties:
+        dag_id: { type: "string", format: "uuid" }
+        task_count: { type: "integer" }
+        tasks:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              task_id: { type: "string", format: "uuid" }
+              title: { type: "string" }
+              task_type:
+                type: "string"
+                enum: ["wire_contract", "schema", "test_scaffold", "core_impl", "integration", "docs"]
+              dependencies:
+                type: "array"
+                items: { type: "string", format: "uuid" }
+                description: "Task IDs that must complete before this task"
+              estimated_duration_minutes: { type: "integer" }
+              assigned_agent: { type: "string" }
+        execution_phases:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              phase_number: { type: "integer" }
+              phase_name: { type: "string" }
+              parallel_tasks:
+                type: "array"
+                items: { type: "string", format: "uuid" }
+        is_acyclic: { type: "boolean" }
+        cycle_check_passed: { type: "boolean" }
+        estimated_duration_minutes: { type: "integer" }
+
+  - name: "provision_ephemeral_worktree"
+    description: "Creates isolated git worktree for autonomous code generation"
+    input_schema:
+      type: "object"
+      required: ["project_id", "branch_name"]
+      properties:
+        project_id: { type: "string", format: "uuid" }
+        branch_name:
+          type: "string"
+          pattern: "^feat/[a-z0-9_-]+$"
+          description: "Feature branch name (must start with 'feat/')"
+        base_ref:
+          type: "string"
+          default: "main"
+          description: "Base branch to fork from"
+        lease_duration_hours:
+          type: "integer"
+          minimum: 1
+          maximum: 72
+          default: 24
+          description: "Worktree auto-expires after this duration"
+        agent_id:
+          type: "string"
+          description: "Agent requesting the worktree lease"
+    output_schema:
+      type: "object"
+      required: ["worktree_id", "worktree_path", "branch", "lease_id", "expires_at"]
+      properties:
+        worktree_id: { type: "string", format: "uuid" }
+        worktree_path:
+          type: "string"
+          description: "Absolute path to worktree (e.g., .nb/workspaces/subagent_cache_20241004/)"
+        branch: { type: "string" }
+        lease_id: { type: "string", format: "uuid" }
+        expires_at: { type: "string", format: "date-time" }
+        git_status:
+          type: "object"
+          properties:
+            clean: { type: "boolean" }
+            ahead_of_base: { type: "integer" }
+            behind_base: { type: "integer" }
+
+  - name: "execute_autonomous_cicd"
+    description: "Triggers bounded TDD autonomous coding with self-healing"
+    input_schema:
+      type: "object"
+      required: ["worktree_id", "dag_id"]
+      properties:
+        worktree_id: { type: "string", format: "uuid" }
+        dag_id: { type: "string", format: "uuid" }
+        execution_mode:
+          type: "string"
+          enum: ["test_only", "impl_only", "full_tdd", "verify_only"]
+          default: "full_tdd"
+        max_retries:
+          type: "integer"
+          minimum: 0
+          maximum: 5
+          default: 3
+        require_human_review:
+          type: "boolean"
+          default: false
+          description: "If true, pauses before merge for HITL approval"
+    output_schema:
+      type: "object"
+      required: ["execution_id", "status", "tasks_completed", "tasks_failed"]
+      properties:
+        execution_id: { type: "string", format: "uuid" }
+        status:
+          type: "string"
+          enum: ["in_progress", "completed", "failed", "quarantined", "awaiting_hitl"]
+        tasks_completed: { type: "integer" }
+        tasks_failed: { type: "integer" }
+        retry_attempts_used: { type: "integer" }
+        test_results:
+          type: "object"
+          properties:
+            total_tests: { type: "integer" }
+            passed: { type: "integer" }
+            failed: { type: "integer" }
+            skipped: { type: "integer" }
+        commit_hashes:
+          type: "array"
+          items: { type: "string" }
+          description: "All commits created in worktree"
+        error_log:
+          type: "string"
+          description: "Compilation/test errors if failed"
+        quarantine_reason:
+          type: "string"
+          description: "Why execution was quarantined (if applicable)"
+
+  - name: "close_knowledge_loop"
+    description: "Backlinks git commits and PR metadata to original thought"
+    input_schema:
+      type: "object"
+      required: ["thought_id", "execution_id", "final_status"]
+      properties:
+        thought_id: { type: "string", format: "uuid" }
+        execution_id: { type: "string", format: "uuid" }
+        final_status:
+          type: "string"
+          enum: ["shipped", "failed", "quarantined", "cancelled"]
+        commit_hashes:
+          type: "array"
+          items: { type: "string" }
+        merkle_block_id: { type: "integer" }
+        pr_url: { type: "string", format: "uri" }
+        test_evidence_path: { type: "string" }
+    output_schema:
+      type: "object"
+      required: ["backlink_id", "thought_updated", "backlink_markdown"]
+      properties:
+        backlink_id: { type: "string", format: "uuid" }
+        thought_updated: { type: "boolean" }
+        backlink_markdown:
+          type: "string"
+          description: "Markdown section appended to thought"
+        thought_version:
+          type: "integer"
+          description: "Version number after update (for conflict detection)"
+        conflict_detected:
+          type: "boolean"
+          description: "True if thought was edited since promotion"
+
+validation_rules:
+  - rule: "thought_id_must_exist"
+    description: "All thought_id references must exist in pos_thoughts database"
+  - rule: "project_id_must_exist"
+    description: "All project_id references must exist in pos_projects database"
+  - rule: "worktree_quota_enforced"
+    description: "Maximum 5 active worktrees per project"
+  - rule: "lease_expiration_enforced"
+    description: "Expired worktree leases automatically reclaimed"
+  - rule: "branch_naming_enforced"
+    description: "All autonomous branches must follow 'feat/{slug}' pattern"
+  - rule: "merge_requires_tests"
+    description: "Cannot merge worktree to main unless all tests pass"
+
+error_codes:
+  - code: "E_THOUGHT_NOT_FOUND"
+    description: "Specified thought_id does not exist"
+  - code: "E_ACTIONABILITY_TOO_LOW"
+    description: "Thought actionability score below threshold"
+  - code: "E_AMBIGUITY_TOO_HIGH"
+    description: "Thought ambiguity requires clarification RFC"
+  - code: "E_MVS_GENERATION_FAILED"
+    description: "Could not auto-generate valid MVS specification"
+  - code: "E_PLAN_VALIDATION_FAILED"
+    description: "Generated plan failed schema validation"
+  - code: "E_DAG_CYCLE_DETECTED"
+    description: "Task dependency graph contains cycles"
+  - code: "E_WORKTREE_QUOTA_EXCEEDED"
+    description: "Project already has maximum worktrees active"
+  - code: "E_WORKTREE_CONFLICT"
+    description: "Worktree path already exists"
+  - code: "E_MERGE_CONFLICT"
+    description: "Cannot fast-forward merge worktree to main"
+  - code: "E_TESTS_FAILED"
+    description: "Autonomous implementation failed tests after max retries"
+  - code: "E_THOUGHT_VERSION_CONFLICT"
+    description: "Thought was edited since promotion (cannot backlink safely)"
+
+performance_targets:
+  evaluate_thought_readiness_p95_ms: 500
+  generate_clarification_rfc_p95_s: 2
+  derive_mvs_specification_p95_s: 5
+  compile_layerable_plan_p95_s: 8
+  decompose_task_dag_p95_s: 10
+  provision_ephemeral_worktree_p95_ms: 1000
+  execute_autonomous_cicd_p95_min: 15
+  close_knowledge_loop_p95_ms: 200

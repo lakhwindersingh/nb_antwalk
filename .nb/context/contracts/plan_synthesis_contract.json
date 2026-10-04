@@ -1,0 +1,608 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://personal-os.dev/schemas/plan_synthesis_contract.json",
+  "title": "Plan Synthesis Contract",
+  "description": "JSON Schema defining MVS (Minimum Viable Set) specification structure and validation rules for autonomous plan generation",
+  "version": "1.0.0",
+
+  "definitions": {
+    "component": {
+      "type": "object",
+      "required": ["name", "type", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][a-zA-Z0-9]*$",
+          "description": "PascalCase component name (e.g., VectorCache, ApiHandler)"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "module",
+            "struct",
+            "trait",
+            "function",
+            "service",
+            "database_table",
+            "api_endpoint",
+            "workflow",
+            "agent"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "What this component does and why it exists"
+        },
+        "rust_crate": {
+          "type": "string",
+          "pattern": "^pos_[a-z_]+$",
+          "description": "Target Rust crate (e.g., pos_storage, pos_agents)"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of other component names this depends on"
+        },
+        "external_dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["crate", "version"],
+            "properties": {
+              "crate": {
+                "type": "string",
+                "description": "External crate name (e.g., tokio, serde)"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+                "description": "Semantic version (e.g., 1.0, 1.2.3)"
+              },
+              "features": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional feature flags"
+              }
+            }
+          }
+        },
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["method_name", "signature"],
+            "properties": {
+              "method_name": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$",
+                "description": "snake_case method name"
+              },
+              "signature": {
+                "type": "string",
+                "description": "Rust function signature"
+              },
+              "description": {
+                "type": "string"
+              },
+              "example_usage": {
+                "type": "string",
+                "description": "Code example showing how to call this method"
+              }
+            }
+          }
+        },
+        "database_schema": {
+          "type": "object",
+          "description": "If type=database_table, define schema",
+          "properties": {
+            "table_name": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_]*$"
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "enum": ["TEXT", "INTEGER", "REAL", "BLOB", "DATETIME", "BOOLEAN"]
+                  },
+                  "nullable": { "type": "boolean", "default": true },
+                  "primary_key": { "type": "boolean", "default": false },
+                  "foreign_key": {
+                    "type": "object",
+                    "properties": {
+                      "table": { "type": "string" },
+                      "column": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "indexes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "columns": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "unique": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "constraint": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "performance",
+            "security",
+            "compatibility",
+            "data_integrity",
+            "scalability",
+            "observability"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "What the constraint is and why it matters"
+        },
+        "measurable_target": {
+          "type": "string",
+          "description": "Concrete target (e.g., 'p95 latency < 50ms')"
+        },
+        "validation_method": {
+          "type": "string",
+          "description": "How to verify this constraint is met"
+        }
+      }
+    },
+
+    "test_case": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Descriptive test case name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["unit", "integration", "property", "benchmark"]
+        },
+        "description": {
+          "type": "string",
+          "description": "What this test verifies"
+        },
+        "preconditions": {
+          "type": "string",
+          "description": "Setup required before test"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered test steps"
+        },
+        "expected_outcome": {
+          "type": "string",
+          "description": "What should happen if implementation is correct"
+        },
+        "test_file_path": {
+          "type": "string",
+          "pattern": "^workplace/modules/[a-z_]+/tests/.*\\.rs$",
+          "description": "Where this test should be implemented"
+        }
+      }
+    }
+  },
+
+  "type": "object",
+  "required": ["mvs_id", "domain", "title", "components", "constraints", "acceptance_criteria"],
+  "properties": {
+    "mvs_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this MVS specification"
+    },
+
+    "thought_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Original thought that generated this MVS"
+    },
+
+    "domain": {
+      "type": "string",
+      "enum": [
+        "storage",
+        "networking",
+        "api",
+        "ui",
+        "ml_inference",
+        "cryptography",
+        "filesystem",
+        "concurrency",
+        "serialization",
+        "search",
+        "observability",
+        "authentication",
+        "workflow_orchestration",
+        "cross_platform"
+      ],
+      "description": "Primary technical domain"
+    },
+
+    "title": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 100,
+      "description": "Human-readable plan title"
+    },
+
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "URL-safe slug for file naming (e.g., 'vector_cache')"
+    },
+
+    "executive_summary": {
+      "type": "string",
+      "minLength": 100,
+      "maxLength": 2000,
+      "description": "2-3 paragraph overview: problem, solution, impact"
+    },
+
+    "problem_statement": {
+      "type": "object",
+      "required": ["current_pain_points", "user_impact"],
+      "properties": {
+        "current_pain_points": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "What's broken or inefficient today"
+        },
+        "user_impact": {
+          "type": "string",
+          "description": "How this affects user workflows"
+        },
+        "quantitative_baseline": {
+          "type": "object",
+          "description": "Current metrics (if measurable)",
+          "properties": {
+            "metric_name": { "type": "string" },
+            "current_value": { "type": "string" },
+            "target_value": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": { "$ref": "#/definitions/component" },
+      "description": "Core building blocks of the solution"
+    },
+
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/constraint" },
+      "description": "Non-negotiable requirements and invariants"
+    },
+
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "description": "Testable success condition (Given/When/Then format preferred)"
+      },
+      "description": "How to know when implementation is complete"
+    },
+
+    "test_strategy": {
+      "type": "object",
+      "properties": {
+        "test_cases": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/test_case" }
+        },
+        "test_coverage_target": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 80,
+          "description": "Code coverage percentage goal"
+        },
+        "performance_benchmarks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "baseline": { "type": "string" },
+              "target": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "integration_points": {
+      "type": "object",
+      "description": "How this integrates with existing Personal OS pillars",
+      "properties": {
+        "projects": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "files": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "thoughts": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "activities": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "workflows": {
+          "type": "object",
+          "properties": {
+            "triggers": { "type": "array", "items": { "type": "string" } },
+            "orchestrates": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "properties": {
+            "requires_leases": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "interactions": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "purchases": {
+          "type": "object",
+          "properties": {
+            "read_operations": { "type": "array", "items": { "type": "string" } },
+            "write_operations": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "architectural_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gap_id", "required"],
+        "properties": {
+          "gap_id": {
+            "type": "string",
+            "pattern": "^GAP-[0-9]{3}$",
+            "description": "Architectural gap ID (e.g., GAP-001, GAP-008)"
+          },
+          "gap_title": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "True if blocking, false if optional"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this gap must be resolved first"
+          }
+        }
+      },
+      "description": "Dependencies on architectural gaps (GAP-001 through GAP-012)"
+    },
+
+    "risks_and_mitigations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "severity", "mitigation"],
+        "properties": {
+          "risk": {
+            "type": "string",
+            "description": "What could go wrong"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "probability": {
+            "type": "string",
+            "enum": ["very_likely", "likely", "possible", "unlikely"]
+          },
+          "mitigation": {
+            "type": "string",
+            "description": "How to prevent or handle this risk"
+          }
+        }
+      }
+    },
+
+    "implementation_phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phase_number", "phase_name", "deliverables"],
+        "properties": {
+          "phase_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "phase_name": {
+            "type": "string"
+          },
+          "deliverables": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "estimated_duration_days": {
+            "type": "integer"
+          },
+          "success_criteria": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "description": "Incremental rollout strategy"
+    },
+
+    "success_metrics": {
+      "type": "object",
+      "properties": {
+        "quantitative": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "metric": { "type": "string" },
+              "target": { "type": "string" },
+              "measurement_method": { "type": "string" }
+            }
+          }
+        },
+        "qualitative": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this MVS was auto-generated"
+    },
+
+    "generated_by": {
+      "type": "string",
+      "description": "Agent or system that generated this MVS"
+    },
+
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence in auto-generated specification (<0.70 requires HITL review)"
+    },
+
+    "requires_human_review": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, must be approved in user/hitl/ before plan generation"
+    },
+
+    "approval_status": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "needs_revision"],
+      "default": "pending"
+    }
+  },
+
+  "examples": [
+    {
+      "mvs_id": "mvs-a3f2b9c1-4d5e-6f78-9012-3456789abcde",
+      "thought_id": "thought-98a2f1",
+      "domain": "storage",
+      "title": "Local Vector Cache for Tantivy Hybrid Search",
+      "slug": "vector_cache",
+      "executive_summary": "Current Tantivy queries take 15ms p95 due to repeated embedding lookups. Implementing an mmap-backed LRU cache with BLAKE3 keys reduces latency to 3ms p95 (80% improvement) for repeated queries.",
+      "problem_statement": {
+        "current_pain_points": [
+          "Vector embeddings recomputed on every search (CPU intensive)",
+          "No caching layer between query and Tantivy index",
+          "p95 latency of 15ms makes real-time suggestions sluggish"
+        ],
+        "user_impact": "Search feels slow during interactive thought capture and associative recall",
+        "quantitative_baseline": {
+          "metric_name": "search_latency_p95",
+          "current_value": "15ms",
+          "target_value": "3ms"
+        }
+      },
+      "components": [
+        {
+          "name": "VectorCache",
+          "type": "struct",
+          "description": "LRU cache mapping BLAKE3(query) to embedding vectors",
+          "rust_crate": "pos_storage",
+          "dependencies": [],
+          "external_dependencies": [
+            { "crate": "lru", "version": "0.12" },
+            { "crate": "blake3", "version": "1.5" },
+            { "crate": "memmap2", "version": "0.9" }
+          ],
+          "interfaces": [
+            {
+              "method_name": "get_or_compute",
+              "signature": "pub async fn get_or_compute(&mut self, query: &str) -> Result<Vec<f32>, CacheError>",
+              "description": "Returns cached embedding or computes and caches",
+              "example_usage": "let embedding = cache.get_or_compute(\"search query\").await?;"
+            }
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "type": "performance",
+          "description": "Cache hit must be <1ms p95",
+          "measurable_target": "p95 < 1ms for cache hits",
+          "validation_method": "Criterion benchmark with 10,000 cached entries"
+        }
+      ],
+      "acceptance_criteria": [
+        "Given a previously seen query, when searched again, then embedding retrieved from cache in <1ms",
+        "Given cache at capacity, when new entry added, then LRU entry evicted",
+        "Given server restart, when cache reloaded from mmap, then all entries restored"
+      ],
+      "generated_at": "2026-10-04T10:30:00Z",
+      "generated_by": "agent_thought_synthesizer",
+      "confidence_score": 0.92,
+      "requires_human_review": false,
+      "approval_status": "approved"
+    }
+  ]
+}

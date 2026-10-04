@@ -1,0 +1,38 @@
+plan_id: extension_meeting_intelligence
+plan_name: Meeting Intelligence & Auto-Transcription Extension
+version: 1.0.0
+capability_rating: Extension Specialist (E-MEET-01 to E-MEET-08)
+plan_type: layerable_extension_plan
+status: specification
+parent_plan: .nb/plan/personal_os/concise.md
+dependencies:
+  - domain_personal_os (>= 1.0.0)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Overview, user scenarios, and CLI commands
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Layerable specification, wire contracts, and diarization audio pipeline
+key_capabilities:
+  - E-MEET-01: Calendar Auto-Join Bot (Zoom / Google Meet / Microsoft Teams)
+  - E-MEET-02: Participant Consent & Multi-Channel Audio Recording
+  - E-MEET-03: Local Whisper Speech-to-Text with Word Timestamps
+  - E-MEET-04: Acoustic Speaker Diarization & Voiceprint Clustering
+  - E-MEET-05: Autonomous Action Item & Task Extraction
+  - E-MEET-06: Structured Decision Synthesis & Markdown Executive Briefs
+  - E-MEET-07: Contextual Pre-Meeting Dossier Generation
+  - E-MEET-08: One-Click Post-Meeting Email & Follow-Up Drafting
+integration_crates:
+  - pos_meeting
+  - pos_transcription
+  - pos_diarization
+success_metrics:
+  word_error_rate: "< 10% on clean audio"
+  speaker_attribution_accuracy: "> 85%"
+  action_item_extraction_precision: "> 80%"
+  local_privacy_guarantee: "Zero cloud audio upload; 100% on-device transcription via Whisper.cpp"

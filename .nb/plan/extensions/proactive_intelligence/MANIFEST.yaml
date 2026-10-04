@@ -1,0 +1,37 @@
+plan_id: extension_proactive_intelligence
+plan_name: Proactive Intelligence & Anomaly Detection Extension
+version: 1.0.0
+capability_rating: Extension Specialist (E-PROACT-01 to E-PROACT-06)
+plan_type: layerable_extension_plan
+status: specification
+parent_plan: .nb/plan/personal_os/concise.md
+dependencies:
+  - domain_personal_os (>= 1.0.0)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Overview, user scenarios, insight examples, and CLI commands
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Layerable specification, wire contracts, and statistical anomaly algorithms
+key_capabilities:
+  - E-PROACT-01: Baseline Statistical Learning Engine (Rolling 90-day window per pillar)
+  - E-PROACT-02: Financial Spending Anomaly Detector (Z-score & IQR outlier analysis)
+  - E-PROACT-03: Habit Streak Protection & Break Risk Predictor
+  - E-PROACT-04: Relationship Maintenance & Social Cadence Sentinel
+  - E-PROACT-05: Work-Life Balance & Cognitive Burnout Monitor
+  - E-PROACT-06: Context-Aware Smart Nudges & Optimal Delivery Scheduler
+integration_crates:
+  - pos_proactive
+  - pos_anomaly
+  - pos_baseline
+  - pos_nudge
+success_metrics:
+  anomaly_precision: "> 80% confirmed relevant by user"
+  false_positive_rate: "< 15% user dismissal rate"
+  evaluation_latency_p95: "< 25ms per anomaly evaluation pass"
+  local_privacy_guarantee: "100% on-device statistical calculation; zero cloud data exfiltration"

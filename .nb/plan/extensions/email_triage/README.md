@@ -59,9 +59,9 @@ graph LR
 
 ## 3. Quick Links
 
+- **[MANIFEST.yaml](./MANIFEST.yaml)**: Machine-readable extension metadata, capabilities (E-EMAIL-01 to E-EMAIL-08)
 - **[concise.md](./concise.md)**: Layerable extension specification, wire contracts, agent manifest
-- **[detailed.md](./detailed.md)**: Implementation architecture, Rust crate design, integration points
-- **[MANIFEST.yaml](./MANIFEST.yaml)**: Machine-readable extension metadata
+- **[Personal OS Core Plan](../../personal_os/README.md)**: Parent Personal OS architecture
 
 ---
 

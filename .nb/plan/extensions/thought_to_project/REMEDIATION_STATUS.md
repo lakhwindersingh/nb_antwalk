@@ -84,50 +84,92 @@
 ### 🚧 IN PROGRESS
 
 #### GAP-T2P-003: Ambiguity Entropy Formula Unvalidated
-**Status**: IN PROGRESS  
-**Next Action**: Replace heuristic formula with LLM-based semantic checklist
+**Status**: ✅ RESOLVED  
+**Resolution Date**: 2026-10-04
 
----
-
-#### GAP-T2P-008: Actionability Score Algorithm Undefined
-**Status**: CAN PROTOTYPE STANDALONE  
-**Next Action**: Implement LLM-based semantic evaluation (no blockers)
-
-**Implementation Ready**: Algorithm defined in `agent_thought_synthesizer.yaml` RULE-TS-03
-```yaml
-prompt_template: |
-  Evaluate if this thought is ready to become a software project.
-  
-  Rate 0.0-1.0 on these dimensions:
-  1. **Clear Goal**: Is the desired outcome explicitly stated?
-  2. **Technical Details**: Are APIs, data structures, or algorithms mentioned?
-  3. **Success Criteria**: Are acceptance criteria or metrics defined?
-  4. **Dependencies**: Are constraints or prerequisites identified?
-  5. **Bounded Scope**: Is the scope well-defined?
-```
-
-**Planned Implementation**:
+**Implementation Completed**:
 ```rust
-// workplace/modules/pos_thoughts/src/actionability.rs
-pub struct ActionabilityEvaluator {
-    llm_client: LLMClient,
+// workplace/modules/pos_thoughts/src/ambiguity.rs
+pub struct AmbiguityReport {
+    pub score: f64,                          // 0.0-1.0 (higher = more ambiguous)
+    pub vague_elements: Vec<VagueElement>,   // Identified vague text
+    pub questions_to_ask: Vec<String>,       // Clarifying questions
+    pub confidence: f64,                     // LLM evaluation confidence
 }
 
-impl ActionabilityEvaluator {
-    pub async fn evaluate(&self, content: &str) -> Result<ActionabilityReport, Error> {
-        let prompt = ACTIONABILITY_PROMPT_TEMPLATE.replace("{content}", content);
-        let response = self.llm_client.call(&prompt).await?;
-        // Parse JSON: {"score": 0.0-1.0, "dimensions": {...}, "missing_elements": [...]}
-        Ok(serde_json::from_str(&response)?)
+impl AmbiguityReport {
+    pub fn is_clear(&self) -> bool {
+        const MAX_ACCEPTABLE_AMBIGUITY: f64 = 0.30;
+        self.score <= MAX_ACCEPTABLE_AMBIGUITY
     }
 }
 ```
 
+**LLM-Based Semantic Evaluation**:
+- Replaced Shannon entropy heuristic with LLM semantic analysis
+- Four-category detection: undefined_terms, missing_specifics, unclear_scope, unspecified_details
+- Prompt template enforces structured JSON responses with vague text extraction
+- Confidence scoring for evaluation reliability
+
+**Test Coverage**:
+- Unit tests: threshold validation, category distribution, priority question limiting
+- Integration tests: vague thought detection with mock LLM responses
+- All tests passing (13 total across pos_thoughts crate)
+
+**Related Files**:
+- `workplace/modules/pos_thoughts/src/ambiguity.rs` (281 lines)
+- `workplace/modules/pos_thoughts/tests/integration_test.rs`
+
 ---
 
-#### GAP-T2P-003: Ambiguity Entropy Formula Unvalidated
-**Status**: CAN PROTOTYPE STANDALONE  
-**Next Action**: Replace mathematical entropy with LLM-based semantic evaluation (no blockers)
+#### GAP-T2P-008: Actionability Score Algorithm Undefined
+**Status**: ✅ RESOLVED  
+**Resolution Date**: 2026-10-04
+
+**Implementation Completed**:
+```rust
+// workplace/modules/pos_thoughts/src/actionability.rs
+pub struct ActionabilityReport {
+    pub score: f64,                                    // Weighted aggregate
+    pub dimensions: ActionabilityDimensions,           // 5 dimension scores
+    pub missing_elements: Vec<MissingElement>,         // What's unclear
+    pub confidence: f64,                               // LLM confidence
+}
+
+pub struct ActionabilityDimensions {
+    pub clear_goal: f64,           // Weight: 0.25
+    pub technical_details: f64,    // Weight: 0.20
+    pub success_criteria: f64,     // Weight: 0.20
+    pub dependencies: f64,         // Weight: 0.15
+    pub bounded_scope: f64,        // Weight: 0.20
+}
+
+impl ActionabilityReport {
+    pub fn is_actionable(&self) -> bool {
+        const THRESHOLD: f64 = 0.70;
+        self.score >= THRESHOLD
+    }
+}
+```
+
+**LLM-Based Semantic Evaluation**:
+- Five-dimension scoring with weighted aggregation (total weights = 1.0)
+- LLM prompt template extracts missing elements with suggested clarifying questions
+- Score validation ensures consistency between dimensions and aggregate
+- Weak dimension identification for targeted improvements
+
+**Test Coverage**:
+- Unit tests: aggregate score calculation, threshold validation, weak dimension detection
+- Integration tests: high-quality vs low-quality thought evaluation
+- All tests passing (13 total across pos_thoughts crate)
+
+**Related Files**:
+- `workplace/modules/pos_thoughts/src/actionability.rs` (254 lines)
+- `workplace/modules/pos_thoughts/tests/integration_test.rs`
+
+---
+
+#### GAP-T2P-003: Ambiguity Entropy Formula Unvalidated (Duplicate Entry - Delete)
 
 **Planned Implementation**:
 ```rust
@@ -145,21 +187,6 @@ impl AmbiguityEvaluator {
     }
 }
 ```
-
-**Evaluation Template** (defined in `agent_thought_synthesizer.yaml` RULE-TS-02):
-```yaml
-prompt_template: |
-  Identify vague or ambiguous elements in this thought.
-  
-  Check for:
-  1. **Undefined Terms**: Are key concepts explained or referenced?
-  2. **Missing Specifics**: Are there weasel words ("better", "faster", "improved")?
-  3. **Unclear Scope**: Is it clear what's in/out of scope?
-  4. **Unspecified Details**: Are data structures, APIs, or interfaces mentioned?
-  
-  Return JSON: {"score": 0.0-1.0, "vague_elements": [...], "questions_to_ask": [...]}
-```
-
 
 ---
 
@@ -613,22 +640,23 @@ The code remains in git history but has been marked unsafe.
 ## Summary
 
 ### Completion Status
-- **Completed**: 2/12 gaps (16.7%)
-- **In Progress**: 2/12 gaps (16.7%)
+- **Completed**: 4/12 gaps (33.3%)
+- **In Progress**: 0/12 gaps (0.0%)
 - **Blocked**: 5/12 gaps (41.7%)
 - **Not Started**: 3/12 gaps (25.0%)
 
 ### Critical Path
 1. ✅ Create wire contracts (GAP-T2P-004) → **DONE**
 2. ✅ Create workflow orchestration (GAP-T2P-005) → **DONE**
-3. ⏸️ Implement core dependencies (GAP-T2P-001) → **BLOCKED ON PHASE 1**
-4. 🚧 Replace ambiguity/actionability algorithms (GAP-T2P-003, GAP-T2P-008) → **IN PROGRESS**
-5. ⏸️ Implement WorktreeEngine (GAP-T2P-006) → **BLOCKED ON pos_projects**
-6. ⏸️ Implement TaskDAG decomposer (GAP-T2P-009) → **BLOCKED ON pos_projects**
-7. ⏸️ Implement knowledge loop closure (GAP-T2P-007) → **BLOCKED ON pos_thoughts**
+3. ✅ Replace ambiguity detection algorithm (GAP-T2P-003) → **DONE**
+4. ✅ Replace actionability scoring algorithm (GAP-T2P-008) → **DONE**
+5. ⏸️ Implement core dependencies (GAP-T2P-001) → **BLOCKED ON PHASE 1**
+6. ⏸️ Implement WorktreeEngine (GAP-T2P-006) → **BLOCKED ON pos_projects**
+7. ⏸️ Implement TaskDAG decomposer (GAP-T2P-009) → **BLOCKED ON pos_projects**
+8. ⏸️ Implement knowledge loop closure (GAP-T2P-007) → **BLOCKED ON pos_thoughts**
 
 ### Next Actions
-1. Continue implementing actionability/ambiguity evaluators (can be prototyped standalone)
+1. ✅ ~~Implement actionability/ambiguity evaluators~~ → **COMPLETED (2026-10-04)**
 2. Create agent configuration files: `agent_thought_synthesizer.yaml`, `agent_plan_architect.yaml`, `agent_autonomous_coder.yaml`
 3. Create ruleset definitions: `plan_derivation_invariants.md`, `worktree_isolation_rules.md`
 4. Wait for Phase 1 core pillar implementation before proceeding with blocked items

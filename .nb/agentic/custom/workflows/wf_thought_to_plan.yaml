@@ -1,0 +1,373 @@
+workflow_id: wf_thought_to_plan
+workflow_name: "Thought-to-Plan Autonomous Pipeline"
+version: 1.0.0
+description: |
+  End-to-end workflow converting unstructured thoughts into formal,
+  validated software specifications (stops before code generation).
+  Includes ambiguity detection, HITL clarification, and MVS synthesis.
+
+trigger:
+  type: manual
+  command: "pos thought promote --id {thought_id}"
+
+parameters:
+  - name: thought_id
+    type: string
+    format: uuid
+    required: true
+    description: "Unique identifier of thought to promote"
+
+  - name: auto_approve_threshold
+    type: number
+    default: 0.85
+    description: "If confidence > threshold, skip HITL approval"
+
+  - name: max_clarification_iterations
+    type: integer
+    default: 2
+    description: "Max RFC cycles before requiring manual review"
+
+outputs:
+  - name: plan_path
+    type: string
+    description: "Path to generated concise.md"
+
+  - name: mvs_path
+    type: string
+    description: "Path to generated MVS YAML"
+
+  - name: status
+    type: string
+    enum: [completed, needs_clarification, failed, cancelled]
+
+timeout: 300  # 5 minutes max
+
+stages:
+  - stage_id: "01_evaluate"
+    stage_name: "Evaluate Thought Readiness"
+    agent: agent_thought_synthesizer
+    action:
+      method: evaluate_thought_readiness
+      input:
+        thought_id: "{{params.thought_id}}"
+        content_markdown: "{{context.thought_content}}"
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      actionability_score: "{{result.actionability_score}}"
+      ambiguity_score: "{{result.ambiguity_score}}"
+      readiness_status: "{{result.readiness_status}}"
+      extracted_entities: "{{result.extracted_entities}}"
+
+    success_condition: "result.actionability_score >= 0.65"
+
+    on_failure:
+      action: notify_user
+      message: |
+        Thought "{{params.thought_id}}" has low actionability score ({{result.actionability_score}}).
+
+        Missing elements:
+        {{#each result.ambiguity_details.missing_elements}}
+          - {{this}}
+        {{/each}}
+
+        Please add more technical details and try again.
+      exit_workflow: true
+
+  - stage_id: "02_check_ambiguity"
+    stage_name: "Ambiguity Gate"
+    condition: "stages.01_evaluate.outputs.ambiguity_score > 0.40"
+    agent: agent_thought_synthesizer
+    action:
+      method: generate_clarification_rfc
+      input:
+        thought_id: "{{params.thought_id}}"
+        ambiguity_details: "{{stages.01_evaluate.outputs.result}}"
+        rfc_template: standard
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      rfc_id: "{{result.rfc_id}}"
+      rfc_path: "{{result.rfc_path}}"
+      questions: "{{result.questions}}"
+
+    next:
+      action: wait_for_hitl
+      target: "{{result.rfc_path}}"
+      timeout_days: 7
+
+    on_timeout:
+      action: cancel_workflow
+      reason: "RFC not answered within 7 days"
+      cleanup:
+        - delete_rfc: "{{result.rfc_path}}"
+        - update_thought_status:
+            thought_id: "{{params.thought_id}}"
+            status: "promotion_expired"
+
+  - stage_id: "02_skip_ambiguity"
+    stage_name: "Skip Ambiguity Check (Clear Thought)"
+    condition: "stages.01_evaluate.outputs.ambiguity_score <= 0.40"
+    action: log
+    message: "Thought is sufficiently clear (ambiguity: {{stages.01_evaluate.outputs.ambiguity_score}}). Proceeding to MVS synthesis."
+
+  - stage_id: "03_synthesize_mvs"
+    stage_name: "Synthesize MVS Specification"
+    depends_on:
+      - stage_id: "02_check_ambiguity"
+        condition: completed
+        optional: true  # Only if ambiguity check ran
+      - stage_id: "02_skip_ambiguity"
+        condition: completed
+        optional: true
+
+    agent: agent_plan_architect
+    action:
+      method: derive_mvs_specification
+      input:
+        thought_id: "{{params.thought_id}}"
+        clarified_content: |
+          {{context.thought_content}}
+          {{#if stages.02_check_ambiguity}}
+
+          # Clarifications from RFC:
+          {{stages.02_check_ambiguity.outputs.rfc_answers}}
+          {{/if}}
+        target_domain: auto  # Auto-detect from content
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      mvs_id: "{{result.mvs_id}}"
+      mvs_path: "{{result.mvs_path}}"
+      domain_detected: "{{result.domain_detected}}"
+      confidence: "{{result.confidence}}"
+
+    success_condition: "result.confidence >= 0.60"
+
+    on_failure:
+      action: quarantine
+      target: user/hitl/poisoned_mvs_specs/
+      reason: "MVS confidence too low: {{result.confidence}}"
+      exit_workflow: true
+
+  - stage_id: "04_validate_mvs"
+    stage_name: "Validate MVS Schema"
+    depends_on: ["03_synthesize_mvs"]
+    action:
+      type: json_schema_validation
+      schema: .nb/context/contracts/plan_synthesis_contract.json
+      input_file: "{{stages.03_synthesize_mvs.outputs.mvs_path}}"
+
+    outputs:
+      validation_passed: "{{result.valid}}"
+      validation_errors: "{{result.errors}}"
+
+    on_failure:
+      action: log_and_retry
+      max_retries: 2
+      message: "MVS schema validation failed. Re-synthesizing..."
+      retry_stage: "03_synthesize_mvs"
+
+    on_max_retries_exceeded:
+      action: escalate_to_hitl
+      message: |
+        MVS synthesis failed validation after 2 attempts.
+        Errors: {{result.errors}}
+
+        Manual review required in: user/hitl/failed_mvs/{{params.thought_id}}/
+      exit_workflow: true
+
+  - stage_id: "05_check_confidence"
+    stage_name: "HITL Approval Gate (Low Confidence)"
+    depends_on: ["04_validate_mvs"]
+    condition: "stages.03_synthesize_mvs.outputs.confidence < params.auto_approve_threshold"
+
+    action: request_approval
+    approval_type: mvs_review
+    approval_path: "user/hitl/mvs_approval_queue/{{stages.03_synthesize_mvs.outputs.mvs_id}}.md"
+
+    approval_prompt: |
+      # MVS Approval Request
+
+      **Thought**: {{params.thought_id}}
+      **Domain**: {{stages.03_synthesize_mvs.outputs.domain_detected}}
+      **Confidence**: {{stages.03_synthesize_mvs.outputs.confidence}}
+
+      **Generated MVS**: {{stages.03_synthesize_mvs.outputs.mvs_path}}
+
+      Please review the auto-generated MVS specification and:
+      - [ ] Approve (confidence is acceptable)
+      - [ ] Request revisions (add comments inline)
+      - [ ] Reject (not feasible or out of scope)
+
+      Approve with: `pos workflow approve {{workflow_id}} --stage 05_check_confidence`
+      Reject with: `pos workflow reject {{workflow_id}} --reason "..."`
+
+    timeout_days: 3
+
+    on_timeout:
+      action: auto_reject
+      reason: "No approval received within 3 days"
+      cleanup:
+        - archive_mvs: "{{stages.03_synthesize_mvs.outputs.mvs_path}}"
+        - update_thought_status:
+            thought_id: "{{params.thought_id}}"
+            status: "approval_timeout"
+
+  - stage_id: "05_skip_approval"
+    stage_name: "Skip Approval (High Confidence)"
+    depends_on: ["04_validate_mvs"]
+    condition: "stages.03_synthesize_mvs.outputs.confidence >= params.auto_approve_threshold"
+    action: log
+    message: "MVS confidence {{stages.03_synthesize_mvs.outputs.confidence}} exceeds threshold {{params.auto_approve_threshold}}. Auto-approving."
+
+  - stage_id: "06_compile_plan"
+    stage_name: "Compile Layerable Domain Plan"
+    depends_on:
+      - stage_id: "05_check_confidence"
+        condition: approved
+        optional: true
+      - stage_id: "05_skip_approval"
+        condition: completed
+        optional: true
+
+    agent: agent_plan_architect
+    action:
+      method: compile_layerable_plan
+      input:
+        mvs_path: "{{stages.03_synthesize_mvs.outputs.mvs_path}}"
+        domain_slug: "{{stages.03_synthesize_mvs.outputs.domain_detected}}"
+        plan_title: "{{context.thought_title}}"
+        template_path: .nb/plan/templates/custom_domain_layer_template.md
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      plan_id: "{{result.plan_id}}"
+      plan_path: "{{result.plan_path}}"
+      contract_paths: "{{result.contract_paths}}"
+      agent_names: "{{result.agent_names}}"
+      validation_status: "{{result.validation_status}}"
+
+    success_condition: "result.validation_status == 'valid' || result.validation_status == 'warnings'"
+
+    on_failure:
+      action: quarantine
+      target: user/hitl/failed_plans/
+      reason: "Plan compilation failed validation: {{result.validation_issues}}"
+      exit_workflow: true
+
+  - stage_id: "07_update_thought"
+    stage_name: "Update Thought with Plan Link"
+    depends_on: ["06_compile_plan"]
+    action:
+      method: update_thought_metadata
+      input:
+        thought_id: "{{params.thought_id}}"
+        metadata:
+          status: "promoted_to_plan"
+          plan_path: "{{stages.06_compile_plan.outputs.plan_path}}"
+          mvs_path: "{{stages.03_synthesize_mvs.outputs.mvs_path}}"
+          promoted_at: "{{now}}"
+          plan_id: "{{stages.06_compile_plan.outputs.plan_id}}"
+
+    outputs:
+      thought_updated: true
+
+  - stage_id: "08_notify_completion"
+    stage_name: "Notify User"
+    depends_on: ["07_update_thought"]
+    action: notify_user
+    notification:
+      type: success
+      title: "Thought Promoted to Plan"
+      message: |
+        ✅ Thought "{{context.thought_title}}" successfully promoted!
+
+        📝 Plan: {{stages.06_compile_plan.outputs.plan_path}}
+        📊 MVS: {{stages.03_synthesize_mvs.outputs.mvs_path}}
+        🏗️ Domain: {{stages.03_synthesize_mvs.outputs.domain_detected}}
+
+        Next steps:
+        1. Review the generated plan
+        2. Execute with: `pos project execute-autonomous --plan {{stages.06_compile_plan.outputs.plan_path}}`
+        3. Or implement manually if you prefer hands-on control
+
+      channels:
+        - cli_stdout
+        - desktop_notification
+        - log_file: .nb/logs/thought_promotions.log
+
+rollback_strategy:
+  on_failure:
+    - delete_generated_files:
+        - "{{stages.03_synthesize_mvs.outputs.mvs_path}}"
+        - "{{stages.06_compile_plan.outputs.plan_path}}"
+        - "{{stages.06_compile_plan.outputs.contract_paths}}"
+    - revert_thought_status:
+        thought_id: "{{params.thought_id}}"
+        status: "active"
+
+  on_cancellation:
+    - cleanup_temp_files
+    - log_cancellation_reason
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: exponential
+    backoff_base_ms: 1000
+
+  fallback_behavior:
+    on_llm_timeout: retry_with_shorter_context
+    on_schema_validation_error: log_and_quarantine
+    on_file_write_error: retry_with_temp_path
+
+metrics:
+  track:
+    - workflow_duration_seconds
+    - actionability_score
+    - ambiguity_score
+    - mvs_confidence
+    - hitl_approval_required
+    - hitl_approval_granted
+    - plan_validation_status
+
+  success_criteria:
+    - workflow_duration_p95_seconds < 60
+    - auto_approval_rate > 0.50
+    - plan_validation_pass_rate > 0.90
+
+observability:
+  log_level: info
+  trace_propagation: enabled
+  sensitive_fields:
+    - thought_content  # Redact from logs
+    - rfc_answers
+  audit_trail: true
+  audit_path: .nb/logs/audit/thought_to_plan/
+
+documentation:
+  usage_example: |
+    # Promote a thought to a formal plan
+    pos thought promote --id thought-98a2f1
+
+    # With custom thresholds
+    pos thought promote --id thought-98a2f1 \
+      --auto-approve-threshold 0.90 \
+      --max-clarifications 3
+
+    # Check workflow status
+    pos workflow status wf_thought_to_plan
+
+    # View generated plan
+    cat .nb/plan/extensions/{domain_slug}/concise.md
+
+  troubleshooting:
+    - issue: "Workflow stuck at HITL approval"
+      solution: "Check user/hitl/mvs_approval_queue/ and approve with: pos workflow approve {workflow_id} --stage 05_check_confidence"
+
+    - issue: "MVS confidence too low"
+      solution: "Add more technical details to thought (code examples, data schemas, success criteria) and retry"
+
+    - issue: "Plan validation fails"
+      solution: "Check user/hitl/failed_plans/ for validation errors. May need manual template fixes."

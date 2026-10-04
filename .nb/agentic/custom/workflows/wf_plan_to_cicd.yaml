@@ -1,0 +1,508 @@
+workflow_id: wf_plan_to_cicd
+workflow_name: "Plan-to-CI/CD Autonomous Execution Pipeline"
+version: 1.0.0
+description: |
+  Orchestrates autonomous code generation from validated layerable plans.
+  Decomposes plan into task DAG, provisions ephemeral git worktree,
+  executes bounded TDD with self-healing, and merges verified code.
+
+trigger:
+  type: manual
+  command: "pos project execute-autonomous --plan {plan_path}"
+
+parameters:
+  - name: plan_path
+    type: string
+    required: true
+    description: "Path to layerable plan concise.md"
+
+  - name: project_id
+    type: string
+    format: uuid
+    required: false
+    description: "Target project UUID (auto-detected if omitted)"
+
+  - name: execution_mode
+    type: string
+    enum: [test_only, impl_only, full_tdd, verify_only]
+    default: full_tdd
+    description: "CI/CD execution strategy"
+
+  - name: max_retries
+    type: integer
+    default: 3
+    minimum: 0
+    maximum: 5
+    description: "Max self-healing attempts per task"
+
+  - name: require_human_review
+    type: boolean
+    default: false
+    description: "Pause before merge for HITL approval"
+
+  - name: worktree_lease_hours
+    type: integer
+    default: 24
+    minimum: 1
+    maximum: 72
+    description: "Worktree auto-expires after this duration"
+
+outputs:
+  - name: execution_id
+    type: string
+    description: "Unique execution run identifier"
+
+  - name: worktree_path
+    type: string
+    description: "Path to ephemeral worktree"
+
+  - name: commit_sha
+    type: string
+    description: "Final merged commit SHA (if successful)"
+
+  - name: status
+    type: string
+    enum: [completed, failed, quarantined, awaiting_hitl, cancelled]
+
+  - name: test_results
+    type: object
+    description: "Final test suite execution summary"
+
+timeout: 3600  # 60 minutes max
+
+stages:
+  - stage_id: "01_parse_plan"
+    stage_name: "Parse Plan and Extract Requirements"
+    agent: agent_plan_architect
+    action:
+      type: file_parse
+      input_file: "{{params.plan_path}}"
+      parser: layerable_plan_parser
+
+    outputs:
+      plan_id: "{{result.plan_id}}"
+      domain_slug: "{{result.domain_slug}}"
+      components: "{{result.components}}"
+      contracts: "{{result.contracts}}"
+      acceptance_criteria: "{{result.acceptance_criteria}}"
+      project_id: "{{result.project_id || params.project_id}}"
+
+    success_condition: "result.components.length > 0"
+
+    on_failure:
+      action: notify_user
+      message: |
+        Failed to parse plan at {{params.plan_path}}.
+        Ensure the plan follows custom_domain_layer_template.md structure.
+      exit_workflow: true
+
+  - stage_id: "02_decompose_dag"
+    stage_name: "Decompose Task DAG"
+    depends_on: ["01_parse_plan"]
+    agent: agent_plan_architect
+    action:
+      method: decompose_task_dag
+      input:
+        plan_path: "{{params.plan_path}}"
+        project_id: "{{stages.01_parse_plan.outputs.project_id}}"
+        decomposition_strategy: llm_assisted
+        max_task_count: 20
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      dag_id: "{{result.dag_id}}"
+      task_count: "{{result.task_count}}"
+      tasks: "{{result.tasks}}"
+      execution_phases: "{{result.execution_phases}}"
+      estimated_duration_minutes: "{{result.estimated_duration_minutes}}"
+
+    success_condition: "result.is_acyclic && result.cycle_check_passed"
+
+    on_failure:
+      action: notify_user
+      message: |
+        Task DAG decomposition failed.
+        Reason: {{result.error}}
+
+        {{#if result.cycle_detected}}
+        Circular dependency detected in task graph.
+        Review plan dependencies and eliminate cycles.
+        {{/if}}
+      exit_workflow: true
+
+  - stage_id: "03_provision_worktree"
+    stage_name: "Provision Ephemeral Worktree"
+    depends_on: ["02_decompose_dag"]
+    action:
+      method: provision_ephemeral_worktree
+      input:
+        project_id: "{{stages.01_parse_plan.outputs.project_id}}"
+        branch_name: "feat/{{stages.01_parse_plan.outputs.domain_slug}}"
+        base_ref: main
+        lease_duration_hours: "{{params.worktree_lease_hours}}"
+        agent_id: agent_autonomous_coder
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      worktree_id: "{{result.worktree_id}}"
+      worktree_path: "{{result.worktree_path}}"
+      branch: "{{result.branch}}"
+      lease_id: "{{result.lease_id}}"
+      expires_at: "{{result.expires_at}}"
+
+    on_failure:
+      action: notify_user
+      message: |
+        Failed to provision worktree.
+        Reason: {{result.error}}
+
+        {{#if result.error_code == 'E_WORKTREE_QUOTA_EXCEEDED'}}
+        Project already has maximum worktrees active.
+        Release existing worktrees with: pos worktree release --project {{stages.01_parse_plan.outputs.project_id}}
+        {{/if}}
+      exit_workflow: true
+
+  - stage_id: "04_execute_autonomous_cicd"
+    stage_name: "Execute Autonomous CI/CD"
+    depends_on: ["03_provision_worktree"]
+    agent: agent_autonomous_coder
+    action:
+      method: execute_autonomous_cicd
+      input:
+        worktree_id: "{{stages.03_provision_worktree.outputs.worktree_id}}"
+        dag_id: "{{stages.02_decompose_dag.outputs.dag_id}}"
+        execution_mode: "{{params.execution_mode}}"
+        max_retries: "{{params.max_retries}}"
+        require_human_review: "{{params.require_human_review}}"
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      execution_id: "{{result.execution_id}}"
+      status: "{{result.status}}"
+      tasks_completed: "{{result.tasks_completed}}"
+      tasks_failed: "{{result.tasks_failed}}"
+      retry_attempts_used: "{{result.retry_attempts_used}}"
+      test_results: "{{result.test_results}}"
+      commit_hashes: "{{result.commit_hashes}}"
+
+    timeout: 3000  # 50 minutes for autonomous coding
+
+    success_condition: "result.status == 'completed'"
+
+    on_failure:
+      action: conditional_quarantine
+      conditions:
+        - condition: "result.status == 'quarantined'"
+          action: quarantine
+          target: user/hitl/quarantined_implementations/
+          message: |
+            Autonomous implementation quarantined after {{result.retry_attempts_used}} healing attempts.
+
+            Failed tasks: {{result.tasks_failed}}/{{stages.02_decompose_dag.outputs.task_count}}
+            Error log: {{result.error_log}}
+
+            Worktree preserved at: {{stages.03_provision_worktree.outputs.worktree_path}}
+            Manual intervention required.
+
+        - condition: "result.status == 'awaiting_hitl'"
+          action: wait_for_approval
+          approval_path: user/hitl/cicd_approval_queue/{{result.execution_id}}.md
+          timeout_days: 3
+
+    on_timeout:
+      action: notify_user
+      message: |
+        Autonomous CI/CD execution timed out after 50 minutes.
+
+        Progress: {{result.tasks_completed}}/{{stages.02_decompose_dag.outputs.task_count}} tasks completed
+
+        Worktree preserved at: {{stages.03_provision_worktree.outputs.worktree_path}}
+        You can continue manually or restart the workflow.
+
+  - stage_id: "05_verify_tests"
+    stage_name: "Final Test Suite Verification"
+    depends_on: ["04_execute_autonomous_cicd"]
+    condition: "stages.04_execute_autonomous_cicd.outputs.status == 'completed'"
+    action:
+      type: shell_command
+      command: |
+        cd {{stages.03_provision_worktree.outputs.worktree_path}}
+        cargo test --all-features --workspace
+      capture_output: true
+
+    outputs:
+      test_passed: "{{result.exit_code == 0}}"
+      test_output: "{{result.stdout}}"
+      test_errors: "{{result.stderr}}"
+
+    success_condition: "result.exit_code == 0"
+
+    on_failure:
+      action: quarantine
+      target: user/hitl/failed_test_runs/
+      message: |
+        Final test suite verification failed despite autonomous CI/CD reporting success.
+
+        This indicates a gap between isolated worktree tests and full workspace tests.
+
+        Test output: {{result.stderr}}
+        Worktree: {{stages.03_provision_worktree.outputs.worktree_path}}
+      exit_workflow: true
+
+  - stage_id: "06_hitl_approval_gate"
+    stage_name: "Human Review Gate (if required)"
+    depends_on: ["05_verify_tests"]
+    condition: "params.require_human_review == true"
+    action: request_approval
+    approval_type: code_review
+    approval_path: user/hitl/merge_approval_queue/{{stages.04_execute_autonomous_cicd.outputs.execution_id}}.md
+
+    approval_prompt: |
+      # Autonomous Code Review Required
+
+      **Plan**: {{params.plan_path}}
+      **Domain**: {{stages.01_parse_plan.outputs.domain_slug}}
+      **Branch**: {{stages.03_provision_worktree.outputs.branch}}
+
+      ## Execution Summary
+      - Tasks completed: {{stages.04_execute_autonomous_cicd.outputs.tasks_completed}}/{{stages.02_decompose_dag.outputs.task_count}}
+      - Test results: {{stages.04_execute_autonomous_cicd.outputs.test_results.passed}}/{{stages.04_execute_autonomous_cicd.outputs.test_results.total_tests}} passed
+      - Retry attempts: {{stages.04_execute_autonomous_cicd.outputs.retry_attempts_used}}
+
+      ## Code Changes
+      Worktree: {{stages.03_provision_worktree.outputs.worktree_path}}
+
+      Review the generated code and:
+      - [ ] Approve merge to main
+      - [ ] Request revisions (add comments)
+      - [ ] Reject implementation
+
+      Approve: `pos workflow approve {{workflow_id}} --stage 06_hitl_approval_gate`
+      Reject: `pos workflow reject {{workflow_id}} --reason "..."`
+
+    timeout_days: 3
+
+    on_timeout:
+      action: auto_reject
+      reason: "No review received within 3 days"
+      cleanup:
+        - preserve_worktree: "{{stages.03_provision_worktree.outputs.worktree_path}}"
+        - notify_user: "Worktree preserved for manual review"
+
+  - stage_id: "06_skip_approval"
+    stage_name: "Skip Approval (Auto-Merge Enabled)"
+    depends_on: ["05_verify_tests"]
+    condition: "params.require_human_review == false"
+    action: log
+    message: "Human review not required (require_human_review=false). Proceeding to merge."
+
+  - stage_id: "07_merge_to_main"
+    stage_name: "Fast-Forward Merge to Main"
+    depends_on:
+      - stage_id: "06_hitl_approval_gate"
+        condition: approved
+        optional: true
+      - stage_id: "06_skip_approval"
+        condition: completed
+        optional: true
+
+    action:
+      type: shell_command
+      command: |
+        cd {{stages.03_provision_worktree.outputs.worktree_path}}
+        git checkout main
+        git merge --ff-only {{stages.03_provision_worktree.outputs.branch}}
+      capture_output: true
+
+    outputs:
+      merge_successful: "{{result.exit_code == 0}}"
+      final_commit_sha: "{{result.stdout | extract_sha}}"
+
+    success_condition: "result.exit_code == 0"
+
+    on_failure:
+      action: escalate_to_hitl
+      message: |
+        Fast-forward merge failed. Manual conflict resolution required.
+
+        Branch: {{stages.03_provision_worktree.outputs.branch}}
+        Base: main
+
+        Likely cause: main branch advanced during autonomous execution.
+
+        Resolution options:
+        1. Rebase worktree branch onto latest main
+        2. Manual merge with conflict resolution
+        3. Restart workflow from latest main
+
+        Worktree preserved at: {{stages.03_provision_worktree.outputs.worktree_path}}
+      exit_workflow: true
+
+  - stage_id: "08_seal_merkle_block"
+    stage_name: "Seal Implementation in Merkle Chain"
+    depends_on: ["07_merge_to_main"]
+    action:
+      type: merkle_seal
+      input:
+        commit_sha: "{{stages.07_merge_to_main.outputs.final_commit_sha}}"
+        plan_path: "{{params.plan_path}}"
+        execution_id: "{{stages.04_execute_autonomous_cicd.outputs.execution_id}}"
+        test_evidence: "{{stages.05_verify_tests.outputs.test_output}}"
+
+    outputs:
+      merkle_block_id: "{{result.block_id}}"
+      merkle_hash: "{{result.block_hash}}"
+      sealed_at: "{{result.timestamp}}"
+
+  - stage_id: "09_close_knowledge_loop"
+    stage_name: "Backlink to Original Thought"
+    depends_on: ["08_seal_merkle_block"]
+    condition: "context.originating_thought_id != null"
+    action:
+      method: close_knowledge_loop
+      input:
+        thought_id: "{{context.originating_thought_id}}"
+        execution_id: "{{stages.04_execute_autonomous_cicd.outputs.execution_id}}"
+        final_status: shipped
+        commit_hashes: "{{stages.04_execute_autonomous_cicd.outputs.commit_hashes}}"
+        merkle_block_id: "{{stages.08_seal_merkle_block.outputs.merkle_block_id}}"
+        test_evidence_path: user/evidence/test_runs/{{stages.04_execute_autonomous_cicd.outputs.execution_id}}.log
+      contract: thought_to_project_wire_contracts.yaml
+
+    outputs:
+      backlink_id: "{{result.backlink_id}}"
+      thought_updated: "{{result.thought_updated}}"
+
+  - stage_id: "10_cleanup_worktree"
+    stage_name: "Release Worktree Lease"
+    depends_on: ["07_merge_to_main"]
+    action:
+      type: worktree_cleanup
+      worktree_id: "{{stages.03_provision_worktree.outputs.worktree_id}}"
+      lease_id: "{{stages.03_provision_worktree.outputs.lease_id}}"
+      cleanup_strategy: delete  # Delete on success
+
+    outputs:
+      cleanup_successful: "{{result.success}}"
+
+  - stage_id: "11_notify_completion"
+    stage_name: "Notify User"
+    depends_on: ["10_cleanup_worktree"]
+    action: notify_user
+    notification:
+      type: success
+      title: "Autonomous Implementation Shipped"
+      message: |
+        ✅ Plan "{{stages.01_parse_plan.outputs.domain_slug}}" successfully implemented and merged!
+
+        📝 Plan: {{params.plan_path}}
+        🔨 Commit: {{stages.07_merge_to_main.outputs.final_commit_sha}}
+        🔐 Merkle Block: #{{stages.08_seal_merkle_block.outputs.merkle_block_id}}
+        ✅ Tests: {{stages.04_execute_autonomous_cicd.outputs.test_results.passed}}/{{stages.04_execute_autonomous_cicd.outputs.test_results.total_tests}} passed
+
+        Tasks completed: {{stages.04_execute_autonomous_cicd.outputs.tasks_completed}}/{{stages.02_decompose_dag.outputs.task_count}}
+        Healing attempts: {{stages.04_execute_autonomous_cicd.outputs.retry_attempts_used}}/{{params.max_retries}}
+
+        Code is now on main branch.
+
+      channels:
+        - cli_stdout
+        - desktop_notification
+        - log_file: .nb/logs/autonomous_implementations.log
+
+rollback_strategy:
+  on_failure:
+    - preserve_worktree:
+        path: "{{stages.03_provision_worktree.outputs.worktree_path}}"
+        reason: "Preserved for manual recovery"
+
+    - log_failure:
+        execution_id: "{{stages.04_execute_autonomous_cicd.outputs.execution_id}}"
+        stage_failed: "{{current_stage}}"
+        error_details: "{{error}}"
+
+    - update_plan_status:
+        plan_path: "{{params.plan_path}}"
+        status: "implementation_failed"
+        failure_reason: "{{error}}"
+
+  on_cancellation:
+    - release_worktree_lease:
+        lease_id: "{{stages.03_provision_worktree.outputs.lease_id}}"
+
+    - cleanup_partial_work:
+        worktree_path: "{{stages.03_provision_worktree.outputs.worktree_path}}"
+
+    - log_cancellation:
+        reason: "User cancelled workflow"
+
+error_handling:
+  retry_policy:
+    max_attempts: 1  # No automatic retries for CI/CD (bounded retries inside stage 04)
+    backoff_strategy: none
+
+  fallback_behavior:
+    on_worktree_quota_exceeded: notify_and_exit
+    on_merge_conflict: preserve_worktree_and_escalate
+    on_test_failure: quarantine
+    on_timeout: preserve_worktree_and_notify
+
+metrics:
+  track:
+    - workflow_duration_seconds
+    - task_count
+    - tasks_completed
+    - tasks_failed
+    - retry_attempts_used
+    - test_pass_rate
+    - worktree_lease_duration_seconds
+    - merge_conflicts_detected
+    - hitl_escalations
+
+  success_criteria:
+    - workflow_duration_p95_minutes < 45
+    - autonomous_success_rate > 0.60  # 60% first-pass success (realistic)
+    - test_pass_rate > 0.95
+    - merge_conflict_rate < 0.10
+
+observability:
+  log_level: info
+  trace_propagation: enabled
+  sensitive_fields:
+    - commit_hashes  # May contain sensitive implementation details
+  audit_trail: true
+  audit_path: .nb/logs/audit/plan_to_cicd/
+
+documentation:
+  usage_example: |
+    # Execute autonomous implementation from plan
+    pos project execute-autonomous --plan .nb/plan/extensions/vector_cache/concise.md
+
+    # With human review gate
+    pos project execute-autonomous \
+      --plan .nb/plan/extensions/vector_cache/concise.md \
+      --require-human-review
+
+    # Test-only mode (generate tests without implementation)
+    pos project execute-autonomous \
+      --plan .nb/plan/extensions/vector_cache/concise.md \
+      --execution-mode test_only
+
+    # Check execution status
+    pos workflow status wf_plan_to_cicd
+
+    # List active worktrees
+    pos worktree list --project <project_id>
+
+  troubleshooting:
+    - issue: "Worktree quota exceeded"
+      solution: "Release inactive worktrees: pos worktree release --project <id> --all-expired"
+
+    - issue: "Merge conflict detected"
+      solution: "Check preserved worktree, manually resolve conflicts, then: git merge --continue"
+
+    - issue: "Test suite fails in final verification"
+      solution: "Check user/hitl/failed_test_runs/ for full output. May indicate test isolation issue."
+
+    - issue: "Implementation quarantined after retries"
+      solution: "Review user/hitl/quarantined_implementations/ for diagnostics. Common causes: ambiguous requirements, missing dependencies, test oracle mismatch."

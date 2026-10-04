@@ -19,7 +19,8 @@ input_parameters:
     description: Force reindex even if file hash exists
 
 steps:
-  - step_id: check_file_exists
+  - id: check_file_exists
+    step_id: check_file_exists
     name: Validate File Exists
     action: file_check
     input:
@@ -27,7 +28,8 @@ steps:
     output_variable: file_info
     timeout_seconds: 2
 
-  - step_id: compute_blake3_hash
+  - id: compute_blake3_hash
+    step_id: compute_blake3_hash
     name: Compute BLAKE3 Content Hash
     agent: agent_file_indexer
     action: hash_file
@@ -38,7 +40,8 @@ steps:
     depends_on:
       - check_file_exists
 
-  - step_id: check_duplicate
+  - id: check_duplicate
+    step_id: check_duplicate
     name: Check for Duplicate by Hash
     agent: agent_file_indexer
     tool: deduplicate
@@ -50,7 +53,8 @@ steps:
       - compute_blake3_hash
     skip_if: "{{ input.force_reindex }}"
 
-  - step_id: extract_text
+  - id: extract_text
+    step_id: extract_text
     name: Extract Text Content
     agent: agent_file_indexer
     action: extract_text
@@ -63,7 +67,8 @@ steps:
       - check_file_exists
     skip_if: "{{ duplicate_check.is_duplicate && !input.force_reindex }}"
 
-  - step_id: generate_embedding
+  - id: generate_embedding
+    step_id: generate_embedding
     name: Generate Semantic Embedding
     agent: agent_file_indexer
     action: embed_text
@@ -78,7 +83,8 @@ steps:
       max_attempts: 2
       backoff_ms: 5000
 
-  - step_id: index_tantivy
+  - id: index_tantivy
+    step_id: index_tantivy
     name: Index in Tantivy (BM25)
     agent: agent_file_indexer
     action: index_tantivy
@@ -93,7 +99,8 @@ steps:
     depends_on:
       - extract_text
 
-  - step_id: store_in_database
+  - id: store_in_database
+    step_id: store_in_database
     name: Store File Metadata in SQLite
     agent: agent_file_indexer
     tool: ingest_file
@@ -112,7 +119,8 @@ steps:
       - generate_embedding
       - index_tantivy
 
-  - step_id: move_to_cas
+  - id: move_to_cas
+    step_id: move_to_cas
     name: Move File to Content-Addressable Storage
     agent: agent_file_indexer
     action: store_blob

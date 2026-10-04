@@ -24,7 +24,8 @@ input_parameters:
     description: Fetch emails since this timestamp
 
 steps:
-  - step_id: fetch_emails
+  - id: fetch_emails
+    step_id: fetch_emails
     name: Fetch New Emails from Account
     action: email_fetch
     input:
@@ -33,7 +34,8 @@ steps:
     output_variable: fetched_emails
     timeout_seconds: 30
 
-  - step_id: classify_batch
+  - id: classify_batch
+    step_id: classify_batch
     name: Classify All Fetched Emails
     agent: agent_inbox_triager
     tool: batch_classify_emails
@@ -44,7 +46,8 @@ steps:
     depends_on:
       - fetch_emails
 
-  - step_id: filter_action_required
+  - id: filter_action_required
+    step_id: filter_action_required
     name: Filter Action Required Emails
     action: filter
     input:
@@ -54,7 +57,8 @@ steps:
     depends_on:
       - classify_batch
 
-  - step_id: extract_entities_from_action_emails
+  - id: extract_entities_from_action_emails
+    step_id: extract_entities_from_action_emails
     name: Extract Entities from Action Required
     agent: agent_entity_extractor
     action: batch_extract
@@ -65,7 +69,8 @@ steps:
     depends_on:
       - filter_action_required
 
-  - step_id: create_tasks
+  - id: create_tasks
+    step_id: create_tasks
     name: Create Project Tasks from Extracted
     action: batch_create
     input:
@@ -76,7 +81,8 @@ steps:
     depends_on:
       - extract_entities_from_action_emails
 
-  - step_id: create_events
+  - id: create_events
+    step_id: create_events
     name: Create Calendar Events
     action: batch_create
     input:
@@ -87,7 +93,8 @@ steps:
     depends_on:
       - extract_entities_from_action_emails
 
-  - step_id: filter_receipts
+  - id: filter_receipts
+    step_id: filter_receipts
     name: Filter Receipt Emails
     action: filter
     input:
@@ -97,7 +104,8 @@ steps:
     depends_on:
       - classify_batch
 
-  - step_id: extract_receipts
+  - id: extract_receipts
+    step_id: extract_receipts
     name: Extract Receipt Data
     agent: agent_entity_extractor
     action: batch_extract_receipts
@@ -108,7 +116,8 @@ steps:
     depends_on:
       - filter_receipts
 
-  - step_id: log_expenses
+  - id: log_expenses
+    step_id: log_expenses
     name: Log Expenses to Purchases
     action: batch_create
     input:
@@ -119,7 +128,8 @@ steps:
     depends_on:
       - extract_receipts
 
-  - step_id: update_sync_state
+  - id: update_sync_state
+    step_id: update_sync_state
     name: Update Last Sync Timestamp
     action: update_sync_state
     input:
@@ -129,7 +139,8 @@ steps:
     depends_on:
       - classify_batch
 
-  - step_id: notify_user
+  - id: notify_user
+    step_id: notify_user
     name: Send Sync Summary Notification
     action: notify
     input:

@@ -70,8 +70,11 @@ outputs:
 
 timeout: 3600  # 60 minutes max
 
-stages:
-  - stage_id: "01_parse_plan"
+stages: &stages
+  - id: "01_parse_plan"
+    step_id: "01_parse_plan"
+    stage_id: "01_parse_plan"
+    name: "Parse Plan and Extract Requirements"
     stage_name: "Parse Plan and Extract Requirements"
     agent: agent_plan_architect
     action:
@@ -96,7 +99,10 @@ stages:
         Ensure the plan follows custom_domain_layer_template.md structure.
       exit_workflow: true
 
-  - stage_id: "02_decompose_dag"
+  - id: "02_decompose_dag"
+    step_id: "02_decompose_dag"
+    stage_id: "02_decompose_dag"
+    name: "Decompose Task DAG"
     stage_name: "Decompose Task DAG"
     depends_on: ["01_parse_plan"]
     agent: agent_plan_architect
@@ -130,7 +136,10 @@ stages:
         {{/if}}
       exit_workflow: true
 
-  - stage_id: "03_provision_worktree"
+  - id: "03_provision_worktree"
+    step_id: "03_provision_worktree"
+    stage_id: "03_provision_worktree"
+    name: "Provision Ephemeral Worktree"
     stage_name: "Provision Ephemeral Worktree"
     depends_on: ["02_decompose_dag"]
     action:
@@ -162,7 +171,10 @@ stages:
         {{/if}}
       exit_workflow: true
 
-  - stage_id: "04_execute_autonomous_cicd"
+  - id: "04_execute_autonomous_cicd"
+    step_id: "04_execute_autonomous_cicd"
+    stage_id: "04_execute_autonomous_cicd"
+    name: "Execute Autonomous CI/CD"
     stage_name: "Execute Autonomous CI/CD"
     depends_on: ["03_provision_worktree"]
     agent: agent_autonomous_coder
@@ -219,7 +231,10 @@ stages:
         Worktree preserved at: {{stages.03_provision_worktree.outputs.worktree_path}}
         You can continue manually or restart the workflow.
 
-  - stage_id: "05_verify_tests"
+  - id: "05_verify_tests"
+    step_id: "05_verify_tests"
+    stage_id: "05_verify_tests"
+    name: "Final Test Suite Verification"
     stage_name: "Final Test Suite Verification"
     depends_on: ["04_execute_autonomous_cicd"]
     condition: "stages.04_execute_autonomous_cicd.outputs.status == 'completed'"
@@ -249,7 +264,10 @@ stages:
         Worktree: {{stages.03_provision_worktree.outputs.worktree_path}}
       exit_workflow: true
 
-  - stage_id: "06_hitl_approval_gate"
+  - id: "06_hitl_approval_gate"
+    step_id: "06_hitl_approval_gate"
+    stage_id: "06_hitl_approval_gate"
+    name: "Human Review Gate (if required)"
     stage_name: "Human Review Gate (if required)"
     depends_on: ["05_verify_tests"]
     condition: "params.require_human_review == true"
@@ -289,14 +307,20 @@ stages:
         - preserve_worktree: "{{stages.03_provision_worktree.outputs.worktree_path}}"
         - notify_user: "Worktree preserved for manual review"
 
-  - stage_id: "06_skip_approval"
+  - id: "06_skip_approval"
+    step_id: "06_skip_approval"
+    stage_id: "06_skip_approval"
+    name: "Skip Approval (Auto-Merge Enabled)"
     stage_name: "Skip Approval (Auto-Merge Enabled)"
     depends_on: ["05_verify_tests"]
     condition: "params.require_human_review == false"
     action: log
     message: "Human review not required (require_human_review=false). Proceeding to merge."
 
-  - stage_id: "07_merge_to_main"
+  - id: "07_merge_to_main"
+    step_id: "07_merge_to_main"
+    stage_id: "07_merge_to_main"
+    name: "Fast-Forward Merge to Main"
     stage_name: "Fast-Forward Merge to Main"
     depends_on:
       - stage_id: "06_hitl_approval_gate"
@@ -338,7 +362,10 @@ stages:
         Worktree preserved at: {{stages.03_provision_worktree.outputs.worktree_path}}
       exit_workflow: true
 
-  - stage_id: "08_seal_merkle_block"
+  - id: "08_seal_merkle_block"
+    step_id: "08_seal_merkle_block"
+    stage_id: "08_seal_merkle_block"
+    name: "Seal Implementation in Merkle Chain"
     stage_name: "Seal Implementation in Merkle Chain"
     depends_on: ["07_merge_to_main"]
     action:
@@ -354,7 +381,10 @@ stages:
       merkle_hash: "{{result.block_hash}}"
       sealed_at: "{{result.timestamp}}"
 
-  - stage_id: "09_close_knowledge_loop"
+  - id: "09_close_knowledge_loop"
+    step_id: "09_close_knowledge_loop"
+    stage_id: "09_close_knowledge_loop"
+    name: "Backlink to Original Thought"
     stage_name: "Backlink to Original Thought"
     depends_on: ["08_seal_merkle_block"]
     condition: "context.originating_thought_id != null"
@@ -373,7 +403,10 @@ stages:
       backlink_id: "{{result.backlink_id}}"
       thought_updated: "{{result.thought_updated}}"
 
-  - stage_id: "10_cleanup_worktree"
+  - id: "10_cleanup_worktree"
+    step_id: "10_cleanup_worktree"
+    stage_id: "10_cleanup_worktree"
+    name: "Release Worktree Lease"
     stage_name: "Release Worktree Lease"
     depends_on: ["07_merge_to_main"]
     action:
@@ -385,7 +418,10 @@ stages:
     outputs:
       cleanup_successful: "{{result.success}}"
 
-  - stage_id: "11_notify_completion"
+  - id: "11_notify_completion"
+    step_id: "11_notify_completion"
+    stage_id: "11_notify_completion"
+    name: "Notify User"
     stage_name: "Notify User"
     depends_on: ["10_cleanup_worktree"]
     action: notify_user
@@ -506,3 +542,5 @@ documentation:
 
     - issue: "Implementation quarantined after retries"
       solution: "Review user/hitl/quarantined_implementations/ for diagnostics. Common causes: ambiguous requirements, missing dependencies, test oracle mismatch."
+
+steps: *stages

@@ -26,8 +26,15 @@ class WorkflowOrchestrator:
             raise FileNotFoundError(f"Workflow definition not found at: {workflow_path}")
         with open(workflow_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
+        if "workflow_id" not in data and "id" in data:
+            data["workflow_id"] = data["id"]
+        if "steps" not in data and "stages" in data:
+            data["steps"] = data["stages"]
         if "workflow_id" not in data or "steps" not in data:
             raise ValueError(f"Invalid workflow schema in {workflow_path}")
+        for s in data["steps"]:
+            if isinstance(s, dict) and "id" not in s:
+                s["id"] = s.get("step_id") or s.get("stage_id") or s.get("name")
         return data
 
     @classmethod
@@ -52,14 +59,14 @@ class WorkflowOrchestrator:
         total_start = time.time()
 
         # Build dependency lookup
-        step_lookup = {s["id"]: s for s in steps}
+        step_lookup = {s.get("id") or s.get("step_id") or s.get("stage_id"): s for s in steps}
         remaining_steps = list(steps)
 
         while remaining_steps:
             # Find all steps whose dependencies are satisfied
             ready_steps = [
                 s for s in remaining_steps
-                if all(dep in executed_steps for dep in s.get("depends_on", []))
+                if all(cls._is_dep_satisfied(dep, executed_steps) for dep in s.get("depends_on", []))
             ]
 
             if not ready_steps:
@@ -115,6 +122,16 @@ class WorkflowOrchestrator:
             "duration_sec": total_duration,
             "parallel_acceleration_enabled": True
         }
+
+    @classmethod
+    def _is_dep_satisfied(cls, dep: Any, executed_steps: Set[str]) -> bool:
+        """Checks whether a dependency (string ID or structured dict) is satisfied."""
+        if isinstance(dep, dict):
+            dep_id = dep.get("stage_id") or dep.get("step_id") or dep.get("id")
+            if dep.get("optional", False):
+                return True
+            return dep_id in executed_steps
+        return dep in executed_steps
 
     @classmethod
     def _execute_single_step(

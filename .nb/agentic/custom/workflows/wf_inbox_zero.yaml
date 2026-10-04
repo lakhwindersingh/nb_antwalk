@@ -13,7 +13,8 @@ input_parameters:
     description: Email account to process
 
 steps:
-  - step_id: fetch_unread
+  - id: fetch_unread
+    step_id: fetch_unread
     name: Fetch Unread Emails
     action: email_query
     input:
@@ -24,7 +25,8 @@ steps:
     output_variable: unread_emails
     timeout_seconds: 10
 
-  - step_id: group_by_category
+  - id: group_by_category
+    step_id: group_by_category
     name: Group by Smart Inbox Category
     action: group_by
     input:
@@ -34,7 +36,8 @@ steps:
     depends_on:
       - fetch_unread
 
-  - step_id: process_action_required
+  - id: process_action_required
+    step_id: process_action_required
     name: Process Action Required (Interactive)
     action: interactive_review
     input:
@@ -47,7 +50,8 @@ steps:
     depends_on:
       - group_by_category
 
-  - step_id: apply_action_decisions
+  - id: apply_action_decisions
+    step_id: apply_action_decisions
     name: Apply User Decisions
     action: batch_apply
     input:
@@ -56,7 +60,8 @@ steps:
     depends_on:
       - process_action_required
 
-  - step_id: bulk_archive_newsletters
+  - id: bulk_archive_newsletters
+    step_id: bulk_archive_newsletters
     name: Archive All Newsletters
     action: confirm_and_execute
     input:
@@ -67,7 +72,8 @@ steps:
     depends_on:
       - group_by_category
 
-  - step_id: review_fyi
+  - id: review_fyi
+    step_id: review_fyi
     name: Quick Review FYI Emails
     action: interactive_review
     input:
@@ -80,7 +86,8 @@ steps:
     depends_on:
       - bulk_archive_newsletters
 
-  - step_id: apply_fyi_decisions
+  - id: apply_fyi_decisions
+    step_id: apply_fyi_decisions
     name: Apply FYI Decisions
     action: batch_apply
     input:
@@ -89,7 +96,8 @@ steps:
     depends_on:
       - review_fyi
 
-  - step_id: verify_receipts
+  - id: verify_receipts
+    step_id: verify_receipts
     name: Verify Receipt Extraction
     action: interactive_review
     input:
@@ -102,7 +110,8 @@ steps:
     depends_on:
       - apply_fyi_decisions
 
-  - step_id: finalize_receipts
+  - id: finalize_receipts
+    step_id: finalize_receipts
     name: Archive Verified Receipts
     action: batch_apply
     input:
@@ -111,7 +120,8 @@ steps:
     depends_on:
       - verify_receipts
 
-  - step_id: report_spam
+  - id: report_spam
+    step_id: report_spam
     name: Report and Delete Spam
     action: confirm_and_execute
     input:
@@ -122,7 +132,8 @@ steps:
     depends_on:
       - finalize_receipts
 
-  - step_id: final_summary
+  - id: final_summary
+    step_id: final_summary
     name: Display Inbox Zero Summary
     action: notify
     input:

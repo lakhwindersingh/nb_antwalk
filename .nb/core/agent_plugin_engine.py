@@ -39,6 +39,9 @@ class AgentPluginEngine:
 
     @classmethod
     def get_workflows_dir(cls, workspace_root: Path = REPO_ROOT) -> Path:
+        custom_p = workspace_root / ".nb" / "agentic" / "custom" / "workflows"
+        if custom_p.exists():
+            return custom_p
         p = workspace_root / cls.WORKFLOWS_DIR
         p.mkdir(parents=True, exist_ok=True)
         return p
@@ -421,7 +424,7 @@ class AgentPluginEngine:
                     data = yaml.safe_load(f)
                     wf_id = data.get("workflow_id", wf.stem)
                     for step in data.get("steps", []):
-                        ex = step.get("executor")
+                        ex = step.get("executor") or step.get("agent")
                         if ex:
                             workflow_steps_map.setdefault(ex, []).append({
                                 "workflow_id": wf_id,

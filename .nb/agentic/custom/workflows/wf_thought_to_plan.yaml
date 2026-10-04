@@ -42,8 +42,11 @@ outputs:
 
 timeout: 300  # 5 minutes max
 
-stages:
-  - stage_id: "01_evaluate"
+stages: &stages
+  - id: "01_evaluate"
+    step_id: "01_evaluate"
+    stage_id: "01_evaluate"
+    name: "Evaluate Thought Readiness"
     stage_name: "Evaluate Thought Readiness"
     agent: agent_thought_synthesizer
     action:
@@ -74,7 +77,10 @@ stages:
         Please add more technical details and try again.
       exit_workflow: true
 
-  - stage_id: "02_check_ambiguity"
+  - id: "02_check_ambiguity"
+    step_id: "02_check_ambiguity"
+    stage_id: "02_check_ambiguity"
+    name: "Ambiguity Gate"
     stage_name: "Ambiguity Gate"
     condition: "stages.01_evaluate.outputs.ambiguity_score > 0.40"
     agent: agent_thought_synthesizer
@@ -105,13 +111,19 @@ stages:
             thought_id: "{{params.thought_id}}"
             status: "promotion_expired"
 
-  - stage_id: "02_skip_ambiguity"
+  - id: "02_skip_ambiguity"
+    step_id: "02_skip_ambiguity"
+    stage_id: "02_skip_ambiguity"
+    name: "Skip Ambiguity Check (Clear Thought)"
     stage_name: "Skip Ambiguity Check (Clear Thought)"
     condition: "stages.01_evaluate.outputs.ambiguity_score <= 0.40"
     action: log
     message: "Thought is sufficiently clear (ambiguity: {{stages.01_evaluate.outputs.ambiguity_score}}). Proceeding to MVS synthesis."
 
-  - stage_id: "03_synthesize_mvs"
+  - id: "03_synthesize_mvs"
+    step_id: "03_synthesize_mvs"
+    stage_id: "03_synthesize_mvs"
+    name: "Synthesize MVS Specification"
     stage_name: "Synthesize MVS Specification"
     depends_on:
       - stage_id: "02_check_ambiguity"
@@ -150,7 +162,10 @@ stages:
       reason: "MVS confidence too low: {{result.confidence}}"
       exit_workflow: true
 
-  - stage_id: "04_validate_mvs"
+  - id: "04_validate_mvs"
+    step_id: "04_validate_mvs"
+    stage_id: "04_validate_mvs"
+    name: "Validate MVS Schema"
     stage_name: "Validate MVS Schema"
     depends_on: ["03_synthesize_mvs"]
     action:
@@ -177,7 +192,10 @@ stages:
         Manual review required in: user/hitl/failed_mvs/{{params.thought_id}}/
       exit_workflow: true
 
-  - stage_id: "05_check_confidence"
+  - id: "05_check_confidence"
+    step_id: "05_check_confidence"
+    stage_id: "05_check_confidence"
+    name: "HITL Approval Gate (Low Confidence)"
     stage_name: "HITL Approval Gate (Low Confidence)"
     depends_on: ["04_validate_mvs"]
     condition: "stages.03_synthesize_mvs.outputs.confidence < params.auto_approve_threshold"
@@ -214,14 +232,20 @@ stages:
             thought_id: "{{params.thought_id}}"
             status: "approval_timeout"
 
-  - stage_id: "05_skip_approval"
+  - id: "05_skip_approval"
+    step_id: "05_skip_approval"
+    stage_id: "05_skip_approval"
+    name: "Skip Approval (High Confidence)"
     stage_name: "Skip Approval (High Confidence)"
     depends_on: ["04_validate_mvs"]
     condition: "stages.03_synthesize_mvs.outputs.confidence >= params.auto_approve_threshold"
     action: log
     message: "MVS confidence {{stages.03_synthesize_mvs.outputs.confidence}} exceeds threshold {{params.auto_approve_threshold}}. Auto-approving."
 
-  - stage_id: "06_compile_plan"
+  - id: "06_compile_plan"
+    step_id: "06_compile_plan"
+    stage_id: "06_compile_plan"
+    name: "Compile Layerable Domain Plan"
     stage_name: "Compile Layerable Domain Plan"
     depends_on:
       - stage_id: "05_check_confidence"
@@ -256,7 +280,10 @@ stages:
       reason: "Plan compilation failed validation: {{result.validation_issues}}"
       exit_workflow: true
 
-  - stage_id: "07_update_thought"
+  - id: "07_update_thought"
+    step_id: "07_update_thought"
+    stage_id: "07_update_thought"
+    name: "Update Thought with Plan Link"
     stage_name: "Update Thought with Plan Link"
     depends_on: ["06_compile_plan"]
     action:
@@ -273,7 +300,10 @@ stages:
     outputs:
       thought_updated: true
 
-  - stage_id: "08_notify_completion"
+  - id: "08_notify_completion"
+    step_id: "08_notify_completion"
+    stage_id: "08_notify_completion"
+    name: "Notify User"
     stage_name: "Notify User"
     depends_on: ["07_update_thought"]
     action: notify_user
@@ -371,3 +401,5 @@ documentation:
 
     - issue: "Plan validation fails"
       solution: "Check user/hitl/failed_plans/ for validation errors. May need manual template fixes."
+
+steps: *stages

@@ -20,7 +20,8 @@ input_parameters:
     description: Date to generate brief for
 
 steps:
-  - step_id: fetch_daily_agenda
+  - id: fetch_daily_agenda
+    step_id: fetch_daily_agenda
     name: Fetch Daily Calendar Agenda
     agent: agent_activity_scheduler
     tool: get_daily_agenda
@@ -32,7 +33,8 @@ steps:
       max_attempts: 2
       backoff_ms: 1000
 
-  - step_id: get_top_priority_tasks
+  - id: get_top_priority_tasks
+    step_id: get_top_priority_tasks
     name: Get Top Priority Project Tasks
     agent: agent_project_orchestrator
     tool: list_workspaces
@@ -42,7 +44,8 @@ steps:
     timeout_seconds: 5
     depends_on: []
 
-  - step_id: check_overdue_items
+  - id: check_overdue_items
+    step_id: check_overdue_items
     name: Check Overdue Tasks and Habits
     agent: agent_activity_scheduler
     tool: get_daily_agenda
@@ -52,7 +55,8 @@ steps:
     timeout_seconds: 5
     depends_on: []
 
-  - step_id: search_flagged_thoughts
+  - id: search_flagged_thoughts
+    step_id: search_flagged_thoughts
     name: Search for Flagged Thoughts or Reminders
     agent: agent_thought_synthesizer
     tool: find_associative
@@ -63,7 +67,8 @@ steps:
     timeout_seconds: 5
     depends_on: []
 
-  - step_id: check_upcoming_subscription_renewals
+  - id: check_upcoming_subscription_renewals
+    step_id: check_upcoming_subscription_renewals
     name: Check Upcoming Subscription Renewals
     agent: agent_finance_tracker
     tool: audit_subscriptions
@@ -73,7 +78,8 @@ steps:
     timeout_seconds: 5
     depends_on: []
 
-  - step_id: synthesize_brief
+  - id: synthesize_brief
+    step_id: synthesize_brief
     name: Synthesize Morning Brief
     agent: agent_thought_synthesizer
     action: synthesize
@@ -116,7 +122,8 @@ steps:
       - search_flagged_thoughts
       - check_upcoming_subscription_renewals
 
-  - step_id: display_brief
+  - id: display_brief
+    step_id: display_brief
     name: Display Brief to User
     action: notify
     input:

@@ -66,42 +66,42 @@ wire_contracts:
     implements:
       - method: compile_layerable_plan
         input_schema:
-          mvs_path: string (path to MVS YAML)
-          domain_slug: string (e.g., "vector_cache")
-          plan_title: string
-          template_path: string (default: custom_domain_layer_template.md)
+          mvs_path: "string (path to MVS YAML)"
+          domain_slug: "string (e.g., 'vector_cache')"
+          plan_title: "string"
+          template_path: "string (default: custom_domain_layer_template.md)"
         output_schema:
-          plan_id: string (uuid)
-          plan_path: string (path to generated concise.md)
-          contract_paths: array of strings (generated contract file paths)
-          agent_names: array of strings (agents referenced in plan)
-          validation_status: enum [valid, warnings, invalid]
-          validation_issues: array of {severity, message, location}
+          plan_id: "string (uuid)"
+          plan_path: "string (path to generated concise.md)"
+          contract_paths: "array of strings (generated contract file paths)"
+          agent_names: "array of strings (agents referenced in plan)"
+          validation_status: "enum [valid, warnings, invalid]"
+          validation_issues: "array of {severity, message, location}"
 
       - method: decompose_task_dag
         input_schema:
-          plan_path: string (path to concise.md)
-          project_id: string (uuid)
-          decomposition_strategy: enum [llm_assisted, rule_based, hybrid]
-          max_task_count: integer (default: 20)
+          plan_path: "string (path to concise.md)"
+          project_id: "string (uuid)"
+          decomposition_strategy: "enum [llm_assisted, rule_based, hybrid]"
+          max_task_count: "integer (default: 20)"
         output_schema:
-          dag_id: string (uuid)
-          task_count: integer
-          tasks: array of {task_id, name, type, dependencies, estimated_duration_minutes}
-          execution_phases: array of {phase_number, tasks, parallelizable}
-          is_acyclic: boolean
-          cycle_check_passed: boolean
-          estimated_duration_minutes: integer
+          dag_id: "string (uuid)"
+          task_count: "integer"
+          tasks: "array of {task_id, name, type, dependencies, estimated_duration_minutes}"
+          execution_phases: "array of {phase_number, tasks, parallelizable}"
+          is_acyclic: "boolean"
+          cycle_check_passed: "boolean"
+          estimated_duration_minutes: "integer"
 
       - method: resolve_dependencies
         input_schema:
-          component_dependencies: array of strings (component names)
-          architectural_dependencies: array of {gap_id, required}
+          component_dependencies: "array of strings (component names)"
+          architectural_dependencies: "array of {gap_id, required}"
         output_schema:
-          resolved_components: array of {component, resolution_path}
-          unresolved_gaps: array of {gap_id, blocking, reason}
-          can_proceed: boolean
-          blocking_issues: array of strings
+          resolved_components: "array of {component, resolution_path}"
+          unresolved_gaps: "array of {gap_id, blocking, reason}"
+          can_proceed: "boolean"
+          blocking_issues: "array of strings"
 
 performance_targets:
   compile_layerable_plan_p95_s: 10
@@ -225,7 +225,7 @@ agent_specific_rules:
       warnings:
         - No test strategy defined
         - Missing performance constraints
-        - >20 tasks (consider splitting)
+        - ">20 tasks (consider splitting)"
         - No implementation phases
       info:
         - Could add more detailed acceptance criteria

@@ -70,46 +70,46 @@ wire_contracts:
     implements:
       - method: execute_autonomous_cicd
         input_schema:
-          worktree_id: string (uuid)
-          dag_id: string (uuid)
-          execution_mode: enum [test_only, impl_only, full_tdd, verify_only]
-          max_retries: integer (default: 3)
-          require_human_review: boolean (default: false)
+          worktree_id: "string (uuid)"
+          dag_id: "string (uuid)"
+          execution_mode: "enum [test_only, impl_only, full_tdd, verify_only]"
+          max_retries: "integer (default: 3)"
+          require_human_review: "boolean (default: false)"
         output_schema:
-          execution_id: string (uuid)
-          status: enum [completed, failed, quarantined, awaiting_hitl, cancelled]
-          tasks_completed: integer
-          tasks_failed: integer
-          retry_attempts_used: integer
-          test_results: object {total_tests, passed, failed, ignored}
-          commit_hashes: array of strings
-          error_log: string (if failed)
+          execution_id: "string (uuid)"
+          status: "enum [completed, failed, quarantined, awaiting_hitl, cancelled]"
+          tasks_completed: "integer"
+          tasks_failed: "integer"
+          retry_attempts_used: "integer"
+          test_results: "object {total_tests, passed, failed, ignored}"
+          commit_hashes: "array of strings"
+          error_log: "string (if failed)"
 
       - method: provision_ephemeral_worktree
         input_schema:
-          project_id: string (uuid)
-          branch_name: string
-          base_ref: string (default: "main")
-          lease_duration_hours: integer (default: 24)
-          agent_id: string
+          project_id: "string (uuid)"
+          branch_name: "string"
+          base_ref: "string (default: 'main')"
+          lease_duration_hours: "integer (default: 24)"
+          agent_id: "string"
         output_schema:
-          worktree_id: string (uuid)
-          worktree_path: string (absolute path)
-          branch: string
-          lease_id: string (uuid)
-          expires_at: datetime
+          worktree_id: "string (uuid)"
+          worktree_path: "string (absolute path)"
+          branch: "string"
+          lease_id: "string (uuid)"
+          expires_at: "datetime"
 
       - method: close_knowledge_loop
         input_schema:
-          thought_id: string (uuid)
-          execution_id: string (uuid)
-          final_status: enum [shipped, failed, cancelled]
-          commit_hashes: array of strings
-          merkle_block_id: string
-          test_evidence_path: string
+          thought_id: "string (uuid)"
+          execution_id: "string (uuid)"
+          final_status: "enum [shipped, failed, cancelled]"
+          commit_hashes: "array of strings"
+          merkle_block_id: "string"
+          test_evidence_path: "string"
         output_schema:
-          backlink_id: string (uuid)
-          thought_updated: boolean
+          backlink_id: "string (uuid)"
+          thought_updated: "boolean"
 
 performance_targets:
   execute_autonomous_cicd_p95_minutes: 45

@@ -1,0 +1,23 @@
+[package]
+name = "pos_email"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal OS Team"]
+description = "Core email sync engine, RFC 5322 metadata extraction, and local storage daemon for Personal OS"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+parking_lot = "0.12"
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio-test = "0.4"

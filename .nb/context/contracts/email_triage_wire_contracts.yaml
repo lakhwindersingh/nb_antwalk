@@ -1,0 +1,184 @@
+title: "Email Triage Wire Contracts"
+type: "object"
+schema_version: "1.0.0"
+domain: "email_triage"
+contract_type: "RPC"
+service_endpoint: "/api/v1/email_triage"
+
+description: |
+  Wire contract defining the RPC interfaces for email synchronization,
+  heuristic and LLM-powered classification, and entity extraction to Personal OS pillars.
+
+methods:
+  - name: "sync_emails"
+    description: "Fetches new emails from IMAP/Gmail provider and commits metadata to local SQLite store"
+    input_schema:
+      type: "object"
+      required: ["account_id"]
+      properties:
+        account_id:
+          type: "string"
+          format: "uuid"
+          description: "Unique identifier for the configured email account"
+        since:
+          type: "string"
+          format: "date-time"
+          description: "Optional ISO-8601 timestamp cutoff for fetching messages"
+    output_schema:
+      type: "object"
+      required: ["account_id", "fetched_count", "stored_count", "duration_ms"]
+      properties:
+        account_id:
+          type: "string"
+          format: "uuid"
+        fetched_count:
+          type: "integer"
+          minimum: 0
+        stored_count:
+          type: "integer"
+          minimum: 0
+        duration_ms:
+          type: "integer"
+          minimum: 0
+
+  - name: "classify_email"
+    description: "Evaluates email metadata and features into smart inbox categories"
+    input_schema:
+      type: "object"
+      required: ["message_id", "subject", "from_email", "body_snippet"]
+      properties:
+        message_id:
+          type: "string"
+        subject:
+          type: "string"
+        from_email:
+          type: "string"
+          format: "email"
+        body_snippet:
+          type: "string"
+          maxLength: 500
+        features:
+          type: "object"
+          properties:
+            has_question_mark: { type: "boolean" }
+            has_deadline_words: { type: "boolean" }
+            has_unsubscribe_link: { type: "boolean" }
+            has_price_pattern: { type: "boolean" }
+            sender_in_contacts: { type: "boolean" }
+            is_cc_recipient: { type: "boolean" }
+    output_schema:
+      type: "object"
+      required: ["category", "confidence", "reasoning"]
+      properties:
+        category:
+          type: "string"
+          enum: ["action_required", "fyi", "newsletter", "receipt", "spam"]
+        confidence:
+          type: "number"
+          minimum: 0.0
+          maximum: 1.0
+        reasoning:
+          type: "string"
+
+  - name: "extract_entities"
+    description: "Extracts structured action items, calendar invites, contacts, and receipts"
+    input_schema:
+      type: "object"
+      required: ["email_id", "subject", "body_snippet"]
+      properties:
+        email_id:
+          type: "string"
+          format: "uuid"
+        subject:
+          type: "string"
+        body_snippet:
+          type: "string"
+          maxLength: 500
+        category:
+          type: "string"
+          enum: ["action_required", "fyi", "newsletter", "receipt", "spam"]
+    output_schema:
+      type: "object"
+      properties:
+        tasks:
+          type: "array"
+          items:
+            type: "object"
+            required: ["title", "priority"]
+            properties:
+              title: { type: "string" }
+              description: { type: "string" }
+              due_date: { type: "string" }
+              priority: { type: "integer", minimum: 1, maximum: 4 }
+        events:
+          type: "array"
+          items:
+            type: "object"
+            required: ["title", "start"]
+            properties:
+              title: { type: "string" }
+              start: { type: "string" }
+              end: { type: "string" }
+              location: { type: "string" }
+              attendees:
+                type: "array"
+                items: { type: "string" }
+        contacts:
+          type: "array"
+          items:
+            type: "object"
+            required: ["name", "email"]
+            properties:
+              name: { type: "string" }
+              email: { type: "string" }
+              organization: { type: "string" }
+              phone: { type: "string" }
+              title: { type: "string" }
+        receipt:
+          type: "object"
+          required: ["vendor", "amount_cents", "currency"]
+          properties:
+            vendor: { type: "string" }
+            amount_cents: { type: "integer" }
+            currency: { type: "string" }
+            date: { type: "string" }
+            items:
+              type: "array"
+              items: { type: "string" }
+
+  - name: "dispatch_to_pillars"
+    description: "Bridges extracted entities into Personal OS target pillars"
+    input_schema:
+      type: "object"
+      required: ["email_id", "pillar", "entity_type", "entity_payload"]
+      properties:
+        email_id:
+          type: "string"
+          format: "uuid"
+        pillar:
+          type: "string"
+          enum: ["projects", "activities", "interactions", "purchases"]
+        entity_type:
+          type: "string"
+          enum: ["task", "event", "contact", "receipt"]
+        entity_payload:
+          type: "object"
+    output_schema:
+      type: "object"
+      required: ["status", "entity_id", "pillar_ref"]
+      properties:
+        status:
+          type: "string"
+          enum: ["created", "linked", "rejected"]
+        entity_id:
+          type: "string"
+        pillar_ref:
+          type: "string"
+
+validation_rules:
+  - rule: "account_id_must_exist"
+    description: "Specified account_id must exist in SQLite email_accounts table"
+  - rule: "retention_minimization"
+    description: "Never store or transmit full email bodies to cloud or third-party APIs"
+  - rule: "vault_credential_isolation"
+    description: "IMAP/OAuth passwords never stored in plaintext outside Secure Vault"

@@ -1,0 +1,23 @@
+[package]
+name = "pos_triage"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal OS Team"]
+description = "Classification, feature extraction, entity extraction, and Personal OS pillar dispatch for Email Triage"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+pos_email = { path = "../pos_email" }
+regex = "1.10"
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio-test = "0.4"

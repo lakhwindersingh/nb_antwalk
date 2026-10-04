@@ -1,0 +1,649 @@
+schema_version: "1.0.0"
+domain: "meta_orchestration"
+service_endpoint: "/api/v1/orchestrate"
+
+# ============================================================================
+# Meta-Orchestrator Wire Contracts
+#
+# Defines the RPC/REST interfaces for the autonomous request routing and
+# processor delegation system.
+# ============================================================================
+
+methods:
+  # --------------------------------------------------------------------------
+  # classify_and_route: Semantic request classification and processor routing
+  # --------------------------------------------------------------------------
+  - name: "classify_and_route"
+    description: "Analyze request intent using LLM-based semantic classification and generate routing plan"
+    method: "POST"
+    path: "/api/v1/orchestrate/classify"
+
+    input_schema:
+      type: "object"
+      required: ["request_text", "context"]
+      properties:
+        request_text:
+          type: "string"
+          description: "Raw user request or task description"
+          minLength: 10
+          maxLength: 50000
+
+        context:
+          type: "object"
+          description: "Contextual metadata for classification"
+          properties:
+            user_id:
+              type: "string"
+              description: "User identifier for access control and preferences"
+
+            session_id:
+              type: "string"
+              description: "Session ID for tracking conversational context"
+
+            urgency:
+              type: "string"
+              enum: ["immediate", "background", "scheduled"]
+              default: "immediate"
+              description: "Execution urgency level"
+
+            scheduled_time:
+              type: "string"
+              format: "date-time"
+              description: "When urgency=scheduled, the target execution time"
+
+            available_context:
+              type: "array"
+              items: { type: "string" }
+              description: "File paths, URLs, or identifiers providing additional context"
+
+            data_sensitivity:
+              type: "string"
+              enum: ["public", "internal", "confidential"]
+              default: "internal"
+              description: "Data sensitivity classification for security routing"
+
+            preferred_processors:
+              type: "array"
+              items: { type: "string" }
+              description: "User preferences for processor selection (optional hints)"
+
+    output_schema:
+      type: "object"
+      required: ["classification", "routing_plan", "execution_id", "estimated_duration_seconds"]
+      properties:
+        classification:
+          type: "object"
+          required: ["primary_intent", "complexity", "confidence"]
+          properties:
+            primary_intent:
+              type: "string"
+              enum:
+                - "project_generation"
+                - "data_analysis"
+                - "reconciliation"
+                - "computation"
+                - "information_extraction"
+                - "synthesis"
+                - "monitoring"
+                - "optimization"
+              description: "Classified primary intent"
+
+            secondary_intents:
+              type: "array"
+              items: { type: "string" }
+              description: "Additional detected intents (multi-objective tasks)"
+
+            complexity:
+              type: "string"
+              enum: ["simple", "moderate", "complex", "exploratory"]
+              description: "Task complexity level"
+
+            confidence:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+              description: "Classification confidence score"
+
+            detected_entities:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  entity_type: { type: "string" }
+                  value: { type: "string" }
+                  relevance: { type: "number" }
+              description: "Extracted named entities (technologies, data sources, metrics)"
+
+        routing_plan:
+          type: "array"
+          items:
+            type: "object"
+            required: ["processor_id", "execution_order", "input_mapping"]
+            properties:
+              processor_id:
+                type: "string"
+                description: "Registered processor identifier"
+
+              execution_order:
+                type: "integer"
+                minimum: 1
+                description: "Sequential execution order (1-based)"
+
+              dependencies:
+                type: "array"
+                items: { type: "string" }
+                description: "Processor IDs this step depends on (for parallel execution)"
+
+              input_mapping:
+                type: "object"
+                description: "Maps request data to processor input schema"
+
+              resource_allocation:
+                type: "object"
+                properties:
+                  ephemeral_worktree: { type: "boolean" }
+                  compute_tier: { type: "string", enum: ["tier_a", "tier_b", "tier_c"] }
+                  max_duration_seconds: { type: "integer" }
+
+              fallback_processor_id:
+                type: "string"
+                description: "Fallback processor if primary fails"
+
+        execution_id:
+          type: "string"
+          format: "uuid"
+          description: "Unique identifier for tracking this orchestrated execution"
+
+        estimated_duration_seconds:
+          type: "integer"
+          minimum: 1
+          description: "Estimated total execution time"
+
+        warnings:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              code: { type: "string" }
+              message: { type: "string" }
+              severity: { type: "string", enum: ["info", "warning", "critical"] }
+          description: "Classification warnings (ambiguity, missing context, etc.)"
+
+  # --------------------------------------------------------------------------
+  # execute_routed_request: Execute classified request through processors
+  # --------------------------------------------------------------------------
+  - name: "execute_routed_request"
+    description: "Execute routing plan by delegating to registered processors"
+    method: "POST"
+    path: "/api/v1/orchestrate/execute"
+
+    input_schema:
+      type: "object"
+      required: ["execution_id", "routing_plan", "request_payload"]
+      properties:
+        execution_id:
+          type: "string"
+          format: "uuid"
+          description: "Execution ID from classify_and_route response"
+
+        routing_plan:
+          type: "object"
+          description: "The routing plan from classification step"
+
+        request_payload:
+          type: "object"
+          description: "Original request data plus any user-approved modifications"
+
+        execution_mode:
+          type: "string"
+          enum: ["synchronous", "async", "background"]
+          default: "synchronous"
+          description: "Execution mode based on urgency"
+
+        monitoring_config:
+          type: "object"
+          properties:
+            enable_progress_updates: { type: "boolean", default: true }
+            progress_webhook_url: { type: "string", format: "uri" }
+            enable_telemetry: { type: "boolean", default: true }
+
+    output_schema:
+      type: "object"
+      required: ["status", "processor_results", "execution_summary"]
+      properties:
+        status:
+          type: "string"
+          enum: ["completed", "partial", "failed", "queued", "running"]
+          description: "Overall execution status"
+
+        processor_results:
+          type: "array"
+          items:
+            type: "object"
+            required: ["processor_id", "status", "duration_seconds"]
+            properties:
+              processor_id:
+                type: "string"
+                description: "Processor that executed this step"
+
+              status:
+                type: "string"
+                enum: ["success", "partial_success", "failed", "skipped"]
+                description: "Processor execution status"
+
+              output:
+                type: "object"
+                description: "Processor-specific output (conforms to processor's output_schema)"
+
+              duration_seconds:
+                type: "number"
+                description: "Actual execution duration"
+
+              artifacts:
+                type: "array"
+                items:
+                  type: "object"
+                  properties:
+                    artifact_type: { type: "string" }
+                    path: { type: "string" }
+                    size_bytes: { type: "integer" }
+                    checksum: { type: "string" }
+                description: "Generated artifacts (files, reports, code)"
+
+              error:
+                type: "object"
+                properties:
+                  code: { type: "string" }
+                  message: { type: "string" }
+                  traceback: { type: "string" }
+                  recovery_suggestion: { type: "string" }
+                description: "Error details if status != success"
+
+              telemetry:
+                type: "object"
+                properties:
+                  llm_calls_count: { type: "integer" }
+                  total_tokens: { type: "integer" }
+                  resource_usage: { type: "object" }
+
+        aggregated_output:
+          type: "object"
+          description: "Synthesized results from all processors"
+          properties:
+            summary:
+              type: "string"
+              description: "Human-readable summary of what was accomplished"
+
+            artifacts:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  artifact_id: { type: "string" }
+                  artifact_type: { type: "string" }
+                  path: { type: "string" }
+                  description: { type: "string" }
+              description: "Consolidated artifacts from all processors"
+
+            actionable_items:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  item_type: { type: "string" }
+                  description: { type: "string" }
+                  priority: { type: "string", enum: ["low", "medium", "high", "critical"] }
+                  assigned_to: { type: "string" }
+              description: "Follow-up actions required from user or system"
+
+            cross_processor_insights:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  insight: { type: "string" }
+                  supporting_processors: { type: "array", items: { type: "string" } }
+                  confidence: { type: "number" }
+              description: "Insights derived from combining processor outputs"
+
+        execution_summary:
+          type: "object"
+          required: ["total_duration_seconds", "processors_executed", "success_rate"]
+          properties:
+            total_duration_seconds:
+              type: "number"
+              description: "Total wall-clock time"
+
+            processors_executed:
+              type: "integer"
+              description: "Number of processors invoked"
+
+            success_rate:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+              description: "Fraction of processors that succeeded"
+
+            cost_estimate:
+              type: "object"
+              properties:
+                llm_api_cost_usd: { type: "number" }
+                compute_cost_usd: { type: "number" }
+                total_cost_usd: { type: "number" }
+
+            resource_usage:
+              type: "object"
+              properties:
+                ephemeral_worktrees_created: { type: "integer" }
+                peak_memory_mb: { type: "number" }
+                disk_usage_mb: { type: "number" }
+
+  # --------------------------------------------------------------------------
+  # register_processor: Register new processor with meta-orchestrator
+  # --------------------------------------------------------------------------
+  - name: "register_processor"
+    description: "Register a new domain-specific processor for autonomous routing"
+    method: "POST"
+    path: "/api/v1/orchestrate/register"
+
+    input_schema:
+      type: "object"
+      required: ["processor_spec"]
+      properties:
+        processor_spec:
+          type: "object"
+          required:
+            - "processor_id"
+            - "processor_name"
+            - "version"
+            - "supported_intents"
+            - "entry_point"
+            - "input_schema"
+            - "output_schema"
+          properties:
+            processor_id:
+              type: "string"
+              pattern: "^[a-z][a-z0-9_]*$"
+              description: "Unique processor identifier (snake_case)"
+
+            processor_name:
+              type: "string"
+              description: "Human-readable processor name"
+
+            version:
+              type: "string"
+              pattern: "^\\d+\\.\\d+\\.\\d+$"
+              description: "Semantic version (X.Y.Z)"
+
+            processor_type:
+              type: "string"
+              enum: ["domain_specific", "generic", "bridge"]
+              default: "domain_specific"
+
+            supported_intents:
+              type: "array"
+              items:
+                type: "string"
+                enum:
+                  - "project_generation"
+                  - "data_analysis"
+                  - "reconciliation"
+                  - "computation"
+                  - "information_extraction"
+                  - "synthesis"
+                  - "monitoring"
+                  - "optimization"
+              minItems: 1
+              description: "Intent types this processor can handle"
+
+            complexity_levels:
+              type: "array"
+              items:
+                type: "string"
+                enum: ["simple", "moderate", "complex", "exploratory"]
+              default: ["simple", "moderate", "complex"]
+
+            entry_point:
+              type: "string"
+              description: "File path to processor spec or executable"
+
+            agent_requirements:
+              type: "array"
+              items: { type: "string" }
+              description: "Required agent IDs (must exist in .nb/agentic/custom/agents/)"
+
+            workflow_requirements:
+              type: "array"
+              items: { type: "string" }
+              description: "Required workflow IDs"
+
+            resource_requirements:
+              type: "object"
+              properties:
+                ephemeral_worktrees: { type: "boolean", default: false }
+                git_operations: { type: "boolean", default: false }
+                llm_calls: { type: "string", enum: ["none", "low_frequency", "high_frequency"] }
+                compute_tier: { type: "string", enum: ["tier_a", "tier_b", "tier_c"] }
+                max_memory_mb: { type: "integer" }
+                max_disk_mb: { type: "integer" }
+
+            input_schema:
+              type: "object"
+              description: "JSON Schema for processor input"
+
+            output_schema:
+              type: "object"
+              description: "JSON Schema for processor output"
+
+            estimated_duration_seconds:
+              type: "integer"
+              minimum: 1
+              description: "Typical execution duration"
+
+            priority:
+              type: "integer"
+              minimum: 1
+              maximum: 100
+              default: 50
+              description: "Routing priority (higher = preferred when multiple processors match)"
+
+            tags:
+              type: "array"
+              items: { type: "string" }
+              description: "Tags for discovery and filtering"
+
+            documentation_url:
+              type: "string"
+              format: "uri"
+              description: "URL to processor documentation"
+
+    output_schema:
+      type: "object"
+      required: ["registration_status", "processor_id"]
+      properties:
+        registration_status:
+          type: "string"
+          enum: ["registered", "updated", "rejected"]
+          description: "Registration outcome"
+
+        processor_id:
+          type: "string"
+          description: "Registered processor ID"
+
+        validation_errors:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              field: { type: "string" }
+              error: { type: "string" }
+              suggestion: { type: "string" }
+          description: "Validation errors if registration_status=rejected"
+
+        conflicts:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              conflict_type: { type: "string" }
+              existing_processor_id: { type: "string" }
+              resolution: { type: "string" }
+          description: "Conflicts detected with existing processors"
+
+  # --------------------------------------------------------------------------
+  # list_processors: Query registered processors
+  # --------------------------------------------------------------------------
+  - name: "list_processors"
+    description: "List all registered processors with optional filtering"
+    method: "GET"
+    path: "/api/v1/orchestrate/processors"
+
+    input_schema:
+      type: "object"
+      properties:
+        intent_filter:
+          type: "string"
+          description: "Filter by supported intent"
+
+        complexity_filter:
+          type: "string"
+          description: "Filter by complexity level"
+
+        tags:
+          type: "array"
+          items: { type: "string" }
+          description: "Filter by tags (OR logic)"
+
+    output_schema:
+      type: "object"
+      required: ["processors", "count"]
+      properties:
+        processors:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              processor_id: { type: "string" }
+              processor_name: { type: "string" }
+              version: { type: "string" }
+              supported_intents: { type: "array" }
+              status: { type: "string", enum: ["active", "deprecated", "disabled"] }
+              registration_date: { type: "string", format: "date-time" }
+
+        count:
+          type: "integer"
+          description: "Total number of matched processors"
+
+  # --------------------------------------------------------------------------
+  # get_execution_status: Query execution status
+  # --------------------------------------------------------------------------
+  - name: "get_execution_status"
+    description: "Query status of an orchestrated execution"
+    method: "GET"
+    path: "/api/v1/orchestrate/executions/{execution_id}"
+
+    input_schema:
+      type: "object"
+      required: ["execution_id"]
+      properties:
+        execution_id:
+          type: "string"
+          format: "uuid"
+          description: "Execution ID to query"
+
+        include_details:
+          type: "boolean"
+          default: false
+          description: "Include detailed processor outputs"
+
+    output_schema:
+      type: "object"
+      required: ["execution_id", "status", "progress"]
+      properties:
+        execution_id:
+          type: "string"
+          format: "uuid"
+
+        status:
+          type: "string"
+          enum: ["queued", "running", "completed", "partial", "failed", "cancelled"]
+
+        progress:
+          type: "object"
+          properties:
+            processors_completed: { type: "integer" }
+            processors_total: { type: "integer" }
+            current_processor: { type: "string" }
+            percent_complete: { type: "number", minimum: 0, maximum: 100 }
+
+        started_at:
+          type: "string"
+          format: "date-time"
+
+        completed_at:
+          type: "string"
+          format: "date-time"
+
+        processor_statuses:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              processor_id: { type: "string" }
+              status: { type: "string" }
+              started_at: { type: "string", format: "date-time" }
+              completed_at: { type: "string", format: "date-time" }
+
+# ============================================================================
+# Safety Invariants & Contract Guarantees
+# ============================================================================
+
+invariants:
+  - name: "processor_isolation"
+    description: "Processors execute in isolated contexts and cannot interfere with each other"
+    enforcement: "runtime"
+
+  - name: "schema_validation"
+    description: "All processor inputs/outputs must conform to declared schemas"
+    enforcement: "pre_execution"
+
+  - name: "resource_bounds"
+    description: "Processors cannot exceed declared resource requirements"
+    enforcement: "runtime_monitoring"
+
+  - name: "intent_confidence_threshold"
+    description: "Classification confidence must exceed 0.60 or request human review"
+    enforcement: "classification"
+
+  - name: "processor_timeout"
+    description: "Processors must complete within 2x estimated_duration_seconds or be terminated"
+    enforcement: "runtime_timeout"
+
+# ============================================================================
+# Error Codes & Recovery Strategies
+# ============================================================================
+
+error_codes:
+  ORH-001:
+    message: "Classification confidence below threshold"
+    recovery: "request_human_review"
+
+  ORH-002:
+    message: "No processor registered for detected intent"
+    recovery: "suggest_manual_routing"
+
+  ORH-003:
+    message: "Processor execution timeout"
+    recovery: "retry_with_fallback_processor"
+
+  ORH-004:
+    message: "Processor output schema validation failed"
+    recovery: "quarantine_output_and_alert"
+
+  ORH-005:
+    message: "Resource quota exceeded"
+    recovery: "queue_for_batch_execution"
+
+  ORH-006:
+    message: "Circular processor dependency detected"
+    recovery: "reject_routing_plan"

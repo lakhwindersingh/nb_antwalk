@@ -1,0 +1,485 @@
+workflow_id: wf_orchestrate_request
+workflow_name: Meta-Orchestration Request Routing
+version: 1.0.0
+workflow_type: orchestration
+description: End-to-end workflow for classifying requests, routing to processors, and aggregating results
+
+# ============================================================================
+# Workflow Steps
+# ============================================================================
+steps:
+  # --------------------------------------------------------------------------
+  # Step 1: Intake & Validation
+  # --------------------------------------------------------------------------
+  - step_id: intake
+    step_name: Request Intake & Validation
+    agent: agent_meta_orchestrator
+    description: Validate incoming request and extract contextual metadata
+
+    input_schema:
+      type: object
+      required: [request_text]
+      properties:
+        request_text:
+          type: string
+          description: Raw user request
+
+        context:
+          type: object
+          properties:
+            user_id: { type: string }
+            session_id: { type: string }
+            urgency: { type: string }
+            available_context: { type: array }
+            data_sensitivity: { type: string }
+
+    actions:
+      - action: validate_request_format
+        description: Check request is not empty, within size limits
+
+      - action: extract_context
+        description: Parse available context files, URLs, identifiers
+
+      - action: assess_urgency
+        description: Determine execution urgency (immediate/background/scheduled)
+
+    output_schema:
+      type: object
+      required: [validated_request, context_summary]
+      properties:
+        validated_request: { type: string }
+        context_summary: { type: object }
+        urgency_level: { type: string }
+
+    timeout_seconds: 10
+    retry_on_failure: false
+
+  # --------------------------------------------------------------------------
+  # Step 2: Intent Classification
+  # --------------------------------------------------------------------------
+  - step_id: classify
+    step_name: Semantic Intent Classification
+    agent: agent_meta_orchestrator
+    depends_on: [intake]
+    description: Use LLM to classify request intent and complexity
+
+    input_schema:
+      type: object
+      required: [validated_request, context_summary]
+
+    actions:
+      - action: construct_classification_prompt
+        description: Build prompt with request + context + classification dimensions
+
+      - action: call_llm_for_classification
+        llm_config:
+          model: claude-3-7-sonnet
+          temperature: 0.2
+          max_tokens: 2048
+          response_format: json_schema
+          schema:
+            type: object
+            required: [primary_intent, complexity, confidence, extracted_entities]
+
+      - action: validate_classification_output
+        description: Ensure all required fields present and within valid ranges
+
+      - action: cache_classification
+        description: Cache for 5 minutes to handle duplicate requests
+        cache_key: "classify:{request_hash}"
+        ttl_seconds: 300
+
+    output_schema:
+      type: object
+      required: [classification, confidence]
+      properties:
+        classification:
+          type: object
+          properties:
+            primary_intent: { type: string }
+            secondary_intents: { type: array }
+            complexity: { type: string }
+            extracted_entities: { type: array }
+            resource_estimates: { type: object }
+            suggested_processors: { type: array }
+            warnings: { type: array }
+
+        confidence:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+
+    timeout_seconds: 5000  # 5 seconds
+    retry_on_failure: true
+    max_retries: 2
+
+    error_handling:
+      on_low_confidence:
+        threshold: 0.60
+        action: request_human_review
+        emit_to: user/hitl/classification_review.md
+
+      on_llm_failure:
+        action: fallback_to_rule_based_classifier
+
+  # --------------------------------------------------------------------------
+  # Step 3: Processor Registry Query
+  # --------------------------------------------------------------------------
+  - step_id: query_registry
+    step_name: Query Processor Registry
+    agent: agent_meta_orchestrator
+    depends_on: [classify]
+    description: Find registered processors matching classified intent
+
+    input_schema:
+      type: object
+      required: [classification]
+
+    actions:
+      - action: load_processor_registry
+        registry_path: .nb/plan/extensions/meta_orchestrator/PROCESSOR_REGISTRY_SCHEMA.yaml
+
+      - action: filter_processors_by_intent
+        description: Match primary_intent to processor supported_intents
+
+      - action: filter_processors_by_complexity
+        description: Ensure processors support required complexity level
+
+      - action: score_processor_candidates
+        description: Rank processors by priority, confidence, availability
+
+      - action: validate_processor_requirements
+        description: Check required agents/workflows exist
+
+    output_schema:
+      type: object
+      required: [matched_processors]
+      properties:
+        matched_processors:
+          type: array
+          items:
+            type: object
+            properties:
+              processor_id: { type: string }
+              confidence_score: { type: number }
+              priority: { type: integer }
+              requirements_met: { type: boolean }
+              missing_requirements: { type: array }
+
+    timeout_seconds: 2000  # 2 seconds
+    retry_on_failure: false
+
+    error_handling:
+      on_no_match:
+        action: suggest_manual_routing
+        emit_to: user/hitl/no_processor_match.md
+
+      on_missing_requirements:
+        action: attempt_auto_provision
+        fallback: alert_user
+
+  # --------------------------------------------------------------------------
+  # Step 4: Routing Plan Generation
+  # --------------------------------------------------------------------------
+  - step_id: generate_routing_plan
+    step_name: Generate Execution Routing Plan
+    agent: agent_meta_orchestrator
+    depends_on: [query_registry]
+    description: Create sequenced routing plan with resource allocation
+
+    input_schema:
+      type: object
+      required: [matched_processors, classification]
+
+    actions:
+      - action: select_primary_processor
+        description: Choose highest-confidence processor
+
+      - action: check_for_multi_processor_requirement
+        description: Determine if request needs multiple processors
+
+      - action: resolve_processor_dependencies
+        description: Build dependency DAG for multi-processor execution
+
+      - action: allocate_resources
+        description: Reserve ephemeral worktrees, compute resources
+
+      - action: configure_monitoring
+        description: Setup progress tracking and telemetry
+
+      - action: generate_fallback_strategy
+        description: Define fallback processors for failures
+
+    output_schema:
+      type: object
+      required: [routing_plan, resource_allocation]
+      properties:
+        routing_plan:
+          type: array
+          items:
+            type: object
+            properties:
+              processor_id: { type: string }
+              execution_order: { type: integer }
+              dependencies: { type: array }
+              input_mapping: { type: object }
+              resource_allocation: { type: object }
+              fallback_processor_id: { type: string }
+
+        resource_allocation:
+          type: object
+          properties:
+            ephemeral_worktrees: { type: array }
+            compute_allocations: { type: array }
+            estimated_total_duration_seconds: { type: integer }
+
+        execution_id:
+          type: string
+          format: uuid
+
+    timeout_seconds: 1000  # 1 second
+    retry_on_failure: false
+
+    error_handling:
+      on_circular_dependency:
+        action: reject_routing_plan
+        emit_error: ORH-006
+
+      on_resource_unavailable:
+        action: queue_for_batch_execution
+
+  # --------------------------------------------------------------------------
+  # Step 5: Processor Execution
+  # --------------------------------------------------------------------------
+  - step_id: execute_processors
+    step_name: Execute Routed Processors
+    agent: agent_meta_orchestrator
+    depends_on: [generate_routing_plan]
+    description: Execute processors according to routing plan
+
+    input_schema:
+      type: object
+      required: [routing_plan, request_payload]
+
+    actions:
+      - action: instantiate_required_agents
+        description: Create agent instances per processor requirements
+
+      - action: provision_ephemeral_contexts
+        description: Setup worktrees, temporary directories
+
+      - action: execute_processors_in_sequence
+        description: Run processors respecting dependency order
+        parallel_execution: true  # Enable parallelization where no dependencies
+
+      - action: monitor_progress
+        description: Emit progress updates for long-running executions
+        progress_webhook: true
+
+      - action: collect_processor_outputs
+        description: Gather results, artifacts, telemetry from each processor
+
+    output_schema:
+      type: object
+      required: [processor_results, execution_summary]
+      properties:
+        processor_results:
+          type: array
+          items:
+            type: object
+            properties:
+              processor_id: { type: string }
+              status: { type: string }
+              output: { type: object }
+              artifacts: { type: array }
+              duration_seconds: { type: number }
+              error: { type: object }
+              telemetry: { type: object }
+
+        execution_summary:
+          type: object
+          properties:
+            total_duration_seconds: { type: number }
+            processors_executed: { type: integer }
+            success_rate: { type: number }
+            cost_estimate: { type: object }
+            resource_usage: { type: object }
+
+    timeout_seconds: null  # Processor-specific timeouts apply
+    retry_on_failure: false
+
+    error_handling:
+      on_processor_timeout:
+        action: terminate_and_switch_to_fallback
+
+      on_processor_failure:
+        action: continue_with_remaining_processors
+        collect_partial_results: true
+
+      on_output_schema_validation_failure:
+        action: quarantine_output
+        emit_error: ORH-004
+
+  # --------------------------------------------------------------------------
+  # Step 6: Result Aggregation & Synthesis
+  # --------------------------------------------------------------------------
+  - step_id: aggregate_results
+    step_name: Aggregate & Synthesize Results
+    agent: agent_meta_orchestrator
+    depends_on: [execute_processors]
+    description: Combine processor outputs into unified response
+
+    input_schema:
+      type: object
+      required: [processor_results]
+
+    actions:
+      - action: collect_all_artifacts
+        description: Gather files, reports, code from all processors
+
+      - action: identify_cross_processor_insights
+        description: Detect patterns or insights spanning multiple processors
+        use_llm: true
+
+      - action: synthesize_summary
+        description: Generate human-readable summary of accomplishments
+        use_llm: true
+
+      - action: extract_actionable_items
+        description: Surface follow-up tasks for user
+
+      - action: generate_unified_report
+        description: Create final report with all findings
+
+    output_schema:
+      type: object
+      required: [status, aggregated_output]
+      properties:
+        status:
+          type: string
+          enum: [completed, partial, failed]
+
+        aggregated_output:
+          type: object
+          properties:
+            summary: { type: string }
+            artifacts: { type: array }
+            actionable_items: { type: array }
+            cross_processor_insights: { type: array }
+
+        report_path:
+          type: string
+          description: Path to generated unified report
+
+    timeout_seconds: 10000  # 10 seconds
+    retry_on_failure: true
+    max_retries: 1
+
+  # --------------------------------------------------------------------------
+  # Step 7: Cleanup & Finalization
+  # --------------------------------------------------------------------------
+  - step_id: cleanup
+    step_name: Resource Cleanup
+    agent: agent_meta_orchestrator
+    depends_on: [aggregate_results]
+    description: Clean up ephemeral resources
+
+    input_schema:
+      type: object
+      required: [resource_allocation]
+
+    actions:
+      - action: remove_ephemeral_worktrees
+        description: Delete temporary worktrees (unless debugging)
+
+      - action: release_compute_allocations
+        description: Free reserved compute resources
+
+      - action: archive_telemetry
+        description: Store telemetry for analytics
+
+      - action: update_processor_metrics
+        description: Update processor success rates, durations
+
+    output_schema:
+      type: object
+      properties:
+        cleanup_status: { type: string }
+        resources_released: { type: array }
+
+    timeout_seconds: 5000  # 5 seconds
+    retry_on_failure: true
+    always_execute: true  # Run even if previous steps failed
+
+# ============================================================================
+# Workflow Configuration
+# ============================================================================
+workflow_configuration:
+  execution_mode: async  # Can be synchronous or async
+  max_total_duration_seconds: 7200  # 2 hours hard timeout
+  enable_progress_updates: true
+  enable_telemetry: true
+  enable_audit_trail: true
+
+  parallelization:
+    enable: true
+    max_parallel_steps: 3
+
+  error_recovery:
+    enable_automatic_retry: true
+    preserve_partial_results: true
+    emit_failure_reports: true
+
+# ============================================================================
+# Metrics & Monitoring
+# ============================================================================
+metrics:
+  track_step_durations: true
+  track_processor_success_rates: true
+  track_classification_accuracy: true
+  track_resource_utilization: true
+
+  alert_conditions:
+    - condition: total_duration > 3600
+      severity: warning
+      action: notify_user
+
+    - condition: success_rate < 0.70
+      severity: critical
+      action: pause_and_review
+
+# ============================================================================
+# Integration Points
+# ============================================================================
+integrations:
+  thought_to_project:
+    trigger_condition: primary_intent == "project_generation"
+    delegate_to: .nb/plan/extensions/thought_to_project/concise.md
+
+  financial_analysis:
+    trigger_condition: primary_intent == "data_analysis" AND "financial" in extracted_entities
+    delegate_to: .nb/plan/extensions/financial_analysis/concise.md
+
+  database_reconciliation:
+    trigger_condition: primary_intent == "reconciliation"
+    delegate_to: .nb/plan/extensions/database_reconciliation/concise.md
+
+  heavy_analysis:
+    trigger_condition: primary_intent == "computation"
+    delegate_to: .nb/plan/extensions/heavy_analysis/concise.md
+
+# ============================================================================
+# Wire Contract Reference
+# ============================================================================
+wire_contract_reference: .nb/plan/extensions/meta_orchestrator/WIRE_CONTRACTS.yaml
+processor_registry_reference: .nb/plan/extensions/meta_orchestrator/PROCESSOR_REGISTRY_SCHEMA.yaml
+
+documentation_url: file://.nb/plan/extensions/meta_orchestrator/README.md
+maintainer: pos_core_team
+tags:
+  - orchestration
+  - routing
+  - multi_processor
+
+created_date: "2026-10-04T00:00:00Z"
+last_updated: "2026-10-04T00:00:00Z"

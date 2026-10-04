@@ -1,0 +1,347 @@
+# ============================================================================
+# thought_to_project Processor Registration
+#
+# First registered processor for meta-orchestrator system.
+# Handles autonomous project generation from thought content.
+# ============================================================================
+processor_id: thought_to_project
+processor_name: Thought-to-Project Autonomous Pipeline
+version: 1.0.0
+processor_type: domain_specific
+status: active
+
+# --------------------------------------------------------------------------
+# Intent & Capability Mapping
+# --------------------------------------------------------------------------
+supported_intents:
+  - project_generation
+  - specification_synthesis
+
+# What complexity levels this processor can handle
+complexity_levels:
+  - simple        # Single-file, well-scoped projects
+  - moderate      # Multi-file projects with clear boundaries
+  - complex       # Multi-module projects with dependencies
+
+# Confidence threshold for auto-routing (0.0-1.0)
+min_routing_confidence: 0.75
+
+# Priority when multiple processors match the same intent (1-100, higher = preferred)
+priority: 90
+
+# --------------------------------------------------------------------------
+# Entry Points & Dependencies
+# --------------------------------------------------------------------------
+entry_point: .nb/plan/extensions/thought_to_project/concise.md
+entry_type: layerable_domain_plan
+
+# Required agents (must exist in .nb/agentic/custom/agents/)
+agent_requirements:
+  - agent_thought_synthesizer
+  - agent_plan_architect
+  - agent_autonomous_coder
+
+# Required workflows (must exist in .nb/agentic/custom/workflows/)
+workflow_requirements:
+  - wf_thought_to_plan
+  - wf_plan_to_cicd
+
+# --------------------------------------------------------------------------
+# Resource Requirements
+# --------------------------------------------------------------------------
+resource_requirements:
+  ephemeral_worktrees: true
+  git_operations: true
+  llm_calls: high_frequency
+  compute_tier: tier_a
+  max_memory_mb: 2048
+  max_disk_mb: 5120
+  max_concurrent_instances: 3
+
+# Typical execution duration (seconds)
+estimated_duration_seconds: 300
+
+# Hard timeout (seconds, default 2x estimated_duration)
+timeout_seconds: 600
+
+# --------------------------------------------------------------------------
+# Input Schema (JSON Schema)
+# --------------------------------------------------------------------------
+input_schema:
+  type: object
+  required:
+    - thought_content
+    - domain_hint
+  properties:
+    thought_content:
+      type: string
+      description: "Raw markdown thought content"
+      minLength: 50
+
+    domain_hint:
+      type: string
+      description: "Optional domain hint (e.g., 'distributed systems', 'frontend UI')"
+
+    thought_id:
+      type: string
+      description: "UUID of the originating thought in Zettelkasten"
+
+    user_preferences:
+      type: object
+      properties:
+        auto_approve_mvs:
+          type: boolean
+          default: false
+          description: "Skip MVS approval step if true"
+
+        target_language:
+          type: string
+          enum: ["rust", "python", "typescript", "go"]
+          description: "Preferred implementation language"
+
+    context_files:
+      type: array
+      items: { type: string }
+      description: "Additional context file paths"
+
+# --------------------------------------------------------------------------
+# Output Schema (JSON Schema)
+# --------------------------------------------------------------------------
+output_schema:
+  type: object
+  required:
+    - status
+    - plan_path
+    - actionability_score
+  properties:
+    status:
+      type: string
+      enum: ["success", "partial", "failed", "requires_clarification"]
+
+    plan_path:
+      type: string
+      description: "Path to generated layerable domain plan"
+
+    mvs_spec_path:
+      type: string
+      description: "Path to synthesized MVS specification"
+
+    actionability_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: "Computed actionability score from pos_thoughts"
+
+    ambiguity_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: "Computed ambiguity score (lower = clearer)"
+
+    task_count:
+      type: integer
+      description: "Number of tasks in generated task DAG"
+
+    ephemeral_branch:
+      type: string
+      description: "Git branch name for ephemeral worktree"
+
+    worktree_path:
+      type: string
+      description: "Path to provisioned worktree"
+
+    artifacts:
+      type: array
+      items:
+        type: object
+        properties:
+          artifact_type: { type: string }
+          path: { type: string }
+          description: { type: string }
+
+    clarification_questions:
+      type: array
+      items:
+        type: object
+        properties:
+          dimension: { type: string }
+          question: { type: string }
+          priority: { type: string, enum: ["low", "medium", "high"] }
+      description: "Questions to ask if actionability/ambiguity thresholds not met"
+
+    cicd_execution_id:
+      type: string
+      format: uuid
+      description: "Autonomous CI/CD triad execution ID"
+
+    commit_hash:
+      type: string
+      pattern: "^[a-f0-9]{40}$"
+      description: "Git commit SHA if code was generated and merged"
+
+    merkle_block_id:
+      type: integer
+      description: "Percipience Merkle ledger block ID"
+
+# --------------------------------------------------------------------------
+# Classification Hints
+# --------------------------------------------------------------------------
+classification_hints:
+  # Keywords/phrases that strongly indicate this processor should be used
+  strong_indicators:
+    - "implement"
+    - "create a project"
+    - "build a system"
+    - "generate code for"
+    - "autonomous development"
+    - "thought to project"
+    - "convert thought"
+    - "synthesize into project"
+
+  # Keywords that weakly indicate this processor
+  weak_indicators:
+    - "software"
+    - "codebase"
+    - "repository"
+    - "module"
+    - "application"
+    - "service"
+
+  # Keywords that indicate this processor should NOT be used
+  exclusion_indicators:
+    - "analyze existing"
+    - "review code"
+    - "reconcile database"
+    - "compare reports"
+    - "no code needed"
+    - "financial analysis"
+    - "data reconciliation"
+
+  # Entities that must be present for high-confidence routing
+  required_entities:
+    entity_types:
+      - technical_concept
+      - technology_stack
+      - architectural_pattern
+
+# --------------------------------------------------------------------------
+# Fallback & Error Handling
+# --------------------------------------------------------------------------
+fallback_processor_id: null  # No fallback, this is a primary processor
+retry_policy:
+  max_attempts: 2
+  backoff_strategy: exponential
+  backoff_base_ms: 5000
+
+error_handling:
+  on_low_actionability:
+    action: emit_clarification_rfc
+    threshold: 0.70
+    emit_to: user/hitl/clarification_needed.md
+
+  on_high_ambiguity:
+    action: emit_clarification_rfc
+    threshold: 0.30
+    emit_to: user/hitl/clarification_needed.md
+
+  on_mvs_synthesis_failure:
+    action: quarantine_and_alert
+    quarantine_path: .nb/quarantine/failed_mvs/
+    emit_error: ORH-004
+
+  on_cicd_failure:
+    action: preserve_worktree_for_debug
+    preserve_duration_hours: 24
+
+# --------------------------------------------------------------------------
+# Telemetry & Monitoring
+# --------------------------------------------------------------------------
+telemetry:
+  emit_progress_updates: true
+  progress_milestones:
+    - ast_parsing_complete
+    - actionability_evaluation_complete
+    - mvs_synthesis_complete
+    - plan_compilation_complete
+    - worktree_provisioned
+    - cicd_execution_started
+    - tests_passed
+    - code_merged
+
+  metrics_to_track:
+    - actionability_score_distribution
+    - ambiguity_score_distribution
+    - mvs_synthesis_duration_seconds
+    - cicd_success_rate
+    - worktree_cleanup_rate
+    - plan_generation_duration_seconds
+    - code_generation_duration_seconds
+
+  alert_conditions:
+    - condition: actionability_score < 0.70
+      severity: warning
+      action: request_human_review
+
+    - condition: ambiguity_score > 0.30
+      severity: warning
+      action: request_human_review
+
+    - condition: cicd_execution_duration_seconds > 1800
+      severity: warning
+      action: notify_user
+
+# --------------------------------------------------------------------------
+# Integration Points
+# --------------------------------------------------------------------------
+integrations:
+  pos_thoughts:
+    purpose: Actionability/ambiguity evaluation, entity extraction
+    wire_contract: .nb/plan/extensions/thought_to_project/WIRE_CONTRACTS.yaml
+    required_apis:
+      - evaluate_actionability
+      - evaluate_ambiguity
+      - extract_entities
+
+  pos_projects:
+    purpose: Ephemeral worktree management, task DAG execution
+    wire_contract: workplace/modules/pos_projects/WIRE_CONTRACTS.yaml
+    required_apis:
+      - provision_worktree
+      - cleanup_worktree
+      - execute_task_dag
+
+  autonomous_cicd:
+    purpose: Automated testing, linting, and merge
+    entry_point: .nb/core/autonomous_cicd.py
+    required_capabilities:
+      - autonomous_test_execution
+      - autonomous_lint_fixing
+      - autonomous_merge
+
+# --------------------------------------------------------------------------
+# Documentation & Support
+# --------------------------------------------------------------------------
+documentation_url: file://.nb/plan/extensions/thought_to_project/README.md
+maintainer: pos_core_team
+tags:
+  - project_generation
+  - autonomous_development
+  - thought_synthesis
+  - ci_cd
+  - code_generation
+
+registration_date: "2026-10-04T00:00:00Z"
+last_updated: "2026-10-04T00:00:00Z"
+
+# --------------------------------------------------------------------------
+# Compatibility & Versioning
+# --------------------------------------------------------------------------
+schema_version: 1.0.0
+api_compatibility:
+  min_pos_thoughts_version: 1.0.0
+  min_pos_projects_version: 1.0.0
+  min_autonomous_cicd_version: 1.0.0
+
+deprecation_policy:
+  sunset_date: null  # No planned deprecation
+  migration_path: null

@@ -1,0 +1,366 @@
+agent_id: agent_meta_orchestrator
+agent_name: Meta-Orchestrator Request Router
+version: 1.0.0
+pillar: orchestration
+model_tier: tier_a
+description: Autonomous request classification and processor routing system for multi-domain task delegation
+
+capabilities:
+  - semantic_intent_classification
+  - processor_registry_management
+  - dynamic_agent_instantiation
+  - workflow_orchestration
+  - result_aggregation
+  - cross_processor_synthesis
+
+tools:
+  - llm_call
+  - read_processor_registry
+  - validate_processor_requirements
+  - instantiate_agent
+  - provision_resources
+  - execute_workflow
+  - aggregate_results
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: gpt-4o
+  temperature: 0.2  # Low temperature for consistent routing decisions
+  max_tokens: 8192
+
+system_prompt: |
+  You are the Meta-Orchestrator for Personal OS. Your role is to:
+
+  1. **Classify Request Intent**: Analyze incoming requests using semantic understanding to determine primary and secondary intents
+  2. **Select Processors**: Match classified intents to registered processors using confidence scoring
+  3. **Plan Execution**: Generate routing plans with dependency ordering and resource allocation
+  4. **Instantiate Agents**: Dynamically create specialized agent teams based on processor requirements
+  5. **Orchestrate Workflows**: Coordinate multi-processor execution with progress monitoring
+  6. **Aggregate Results**: Synthesize outputs from multiple processors into unified insights
+
+  ## Intent Classification Guidelines
+
+  ### project_generation
+  - Keywords: "implement", "build", "create project", "generate code", "autonomous development"
+  - Route to: thought_to_project processor
+  - Requires: Technical specifications, bounded scope, clear deliverables
+
+  ### data_analysis
+  - Keywords: "analyze", "report", "insights", "trends", "metrics"
+  - Route to: financial_analysis, generic_data_analysis processors
+  - Requires: Data source specification, analysis objectives
+
+  ### reconciliation
+  - Keywords: "reconcile", "compare", "sync", "merge", "find duplicates"
+  - Route to: database_reconciliation processor
+  - Requires: Multiple data sources, matching rules
+
+  ### computation
+  - Keywords: "simulate", "optimize", "Monte Carlo", "heavy computation"
+  - Route to: heavy_analysis processor
+  - Requires: Computation type, input parameters, resource estimates
+
+  ### information_extraction
+  - Keywords: "extract", "parse", "structure", "convert"
+  - Route to: entity_extractor, information_extraction processors
+  - Requires: Source format, target schema
+
+  ### synthesis
+  - Keywords: "summarize", "combine", "synthesize", "generate report"
+  - Route to: report_synthesizer processor
+  - Requires: Multiple inputs, synthesis objectives
+
+  ## Routing Decision Process
+
+  1. **Extract Key Entities**: Identify technologies, data sources, metrics, domains
+  2. **Compute Intent Scores**: Score each intent dimension (0.0-1.0)
+  3. **Consult Processor Registry**: Match intents to registered processors
+  4. **Check Prerequisites**: Validate required agents/workflows exist
+  5. **Generate Routing Plan**: Sequence processors with dependency constraints
+  6. **Estimate Resources**: Calculate memory, disk, duration requirements
+
+  ## Confidence Thresholds
+
+  - **High Confidence (>0.80)**: Auto-route to processor
+  - **Medium Confidence (0.60-0.80)**: Route with monitoring
+  - **Low Confidence (<0.60)**: Request human clarification
+
+  ## Multi-Processor Coordination
+
+  When a request requires multiple processors:
+  1. Identify processor dependencies (sequential vs parallel)
+  2. Allocate shared resources (ephemeral worktrees, compute)
+  3. Establish inter-processor data contracts
+  4. Monitor execution and handle failures gracefully
+
+  ## Result Aggregation Strategy
+
+  1. **Collect Artifacts**: Gather outputs from all processors
+  2. **Identify Patterns**: Detect cross-processor insights
+  3. **Synthesize Summary**: Generate unified human-readable report
+  4. **Extract Action Items**: Surface follow-up tasks for user
+
+  ## Error Handling
+
+  - **Processor Timeout**: Switch to fallback processor if available
+  - **Invalid Output Schema**: Quarantine and alert
+  - **Resource Exhaustion**: Queue for batch execution
+  - **Circular Dependencies**: Reject routing plan
+
+  CONSTRAINTS:
+  - Never route to non-existent processors
+  - Always validate processor input schemas before routing
+  - Respect resource quotas (max concurrent instances, memory limits)
+  - Emit progress updates for long-running executions (>30s)
+  - Maintain audit trail of all routing decisions
+
+tool_schemas:
+  llm_call:
+    description: "Call LLM for semantic classification"
+    input:
+      prompt:
+        type: string
+        description: "Classification prompt with request context"
+      schema:
+        type: object
+        description: "JSON schema for structured output"
+    output:
+      response:
+        type: object
+        description: "Structured classification result"
+
+  read_processor_registry:
+    description: "Query registered processors"
+    input:
+      filters:
+        type: object
+        properties:
+          intent: { type: string }
+          complexity: { type: string }
+          tags: { type: array }
+    output:
+      processors:
+        type: array
+        items: { type: object }
+
+  validate_processor_requirements:
+    description: "Check if processor requirements are met"
+    input:
+      processor_id:
+        type: string
+      required_agents:
+        type: array
+      required_workflows:
+        type: array
+    output:
+      valid:
+        type: boolean
+      missing_requirements:
+        type: array
+
+  instantiate_agent:
+    description: "Create new agent instance from spec"
+    input:
+      agent_id:
+        type: string
+      config_overrides:
+        type: object
+    output:
+      agent_instance_id:
+        type: string
+      status:
+        type: string
+
+  provision_resources:
+    description: "Allocate compute resources for execution"
+    input:
+      resource_requirements:
+        type: object
+    output:
+      resource_allocation_id:
+        type: string
+      allocated_resources:
+        type: object
+
+  execute_workflow:
+    description: "Execute workflow with monitoring"
+    input:
+      workflow_id:
+        type: string
+      input_payload:
+        type: object
+      monitoring_config:
+        type: object
+    output:
+      execution_id:
+        type: string
+      status:
+        type: string
+
+  aggregate_results:
+    description: "Synthesize results from multiple processors"
+    input:
+      processor_outputs:
+        type: array
+        items: { type: object }
+      aggregation_strategy:
+        type: string
+    output:
+      aggregated_output:
+        type: object
+      cross_processor_insights:
+        type: array
+
+capability_token:
+  permissions:
+    - orchestration:classify
+    - orchestration:route
+    - orchestration:execute
+    - processors:read
+    - processors:register
+    - agents:instantiate
+    - workflows:execute
+    - resources:provision
+    - vault:lease:all_tokens:read_only
+  restrictions:
+    max_concurrent_executions: 10
+    max_processors_per_execution: 5
+    max_routing_duration_seconds: 30
+    classification_cache_ttl_seconds: 300
+
+workflow_integrations:
+  - wf_orchestrate_request
+  - wf_multi_processor_coordination
+  - wf_result_synthesis
+
+metrics:
+  success_criteria:
+    - classification_accuracy > 0.85
+    - routing_confidence_average > 0.75
+    - processor_success_rate > 0.80
+    - result_aggregation_quality > 0.80
+  performance_targets:
+    classification_time_ms: 500
+    routing_plan_generation_time_ms: 1000
+    end_to_end_orchestration_overhead_ms: 2000
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: exponential
+    backoff_base_ms: 2000
+  fallback_behavior:
+    on_classification_failure: request_human_review
+    on_no_processor_match: suggest_manual_routing
+    on_processor_timeout: switch_to_fallback_processor
+    on_resource_exhaustion: queue_for_batch_execution
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - user_credentials
+    - api_tokens
+    - database_connection_strings
+  audit_trail: true
+  emit_classification_rationale: true
+
+# ============================================================================
+# Intent Classification Prompt Template
+# ============================================================================
+classification_prompt_template: |
+  Classify the following user request to determine routing strategy.
+
+  Request:
+  {request_text}
+
+  Available Context:
+  {context_summary}
+
+  Analyze the request across these dimensions:
+
+  1. **Primary Intent**: What is the main objective?
+     - project_generation: Convert idea/thought into executable software project
+     - data_analysis: Analyze structured or unstructured data
+     - reconciliation: Compare and align data from multiple sources
+     - computation: Perform heavy computational work
+     - information_extraction: Extract structured data from unstructured sources
+     - synthesis: Combine multiple inputs into unified output
+     - monitoring: Track and alert on system state
+     - optimization: Improve performance or efficiency
+
+  2. **Complexity Level**: How complex is this task?
+     - simple: Single-step, single-processor
+     - moderate: Multi-step within single processor
+     - complex: Multi-processor coordination
+     - exploratory: Iterative refinement required
+
+  3. **Key Entities**: What are the named entities?
+     - Technologies (languages, frameworks, libraries)
+     - Data sources (databases, files, APIs)
+     - Metrics (performance targets, thresholds)
+     - Domains (finance, healthcare, infrastructure)
+
+  4. **Resource Requirements**: What resources are needed?
+     - Ephemeral worktrees (code generation)
+     - Git operations (version control)
+     - LLM calls frequency (none/low/high)
+     - Compute tier (tier_a/tier_b/tier_c)
+     - Estimated duration
+
+  Return ONLY valid JSON (no markdown fences):
+  {
+    "primary_intent": "project_generation",
+    "secondary_intents": ["specification_synthesis"],
+    "complexity": "moderate",
+    "confidence": 0.92,
+    "extracted_entities": [
+      {
+        "entity_type": "technology",
+        "value": "LRU cache",
+        "relevance": 0.95
+      },
+      {
+        "entity_type": "metric",
+        "value": "1000 entry capacity",
+        "relevance": 0.85
+      }
+    ],
+    "resource_estimates": {
+      "ephemeral_worktrees": true,
+      "git_operations": true,
+      "llm_calls": "high_frequency",
+      "compute_tier": "tier_a",
+      "estimated_duration_seconds": 300
+    },
+    "suggested_processors": [
+      {
+        "processor_id": "thought_to_project",
+        "confidence": 0.92,
+        "rationale": "Request contains technical specifications and bounded scope"
+      }
+    ],
+    "warnings": []
+  }
+
+# ============================================================================
+# Routing Plan Generation
+# ============================================================================
+routing_plan_template: |
+  Based on classification:
+  - Primary Intent: {primary_intent}
+  - Complexity: {complexity}
+  - Suggested Processors: {processors}
+
+  Generate execution plan:
+  1. Validate processor requirements (agents, workflows exist)
+  2. Check resource availability (worktrees, memory, compute)
+  3. Sequence processors (handle dependencies)
+  4. Allocate resources (ephemeral contexts)
+  5. Configure monitoring (progress updates, telemetry)
+
+  Output routing plan with:
+  - Processor execution order
+  - Dependency constraints
+  - Resource allocations
+  - Fallback strategies
+  - Expected artifacts

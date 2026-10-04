@@ -1,0 +1,50 @@
+[package]
+name = "pos_orchestrator"
+version = "0.1.0"
+edition = "2021"
+authors = ["Personal OS Team"]
+description = "Meta-orchestration layer for autonomous request routing and multi-processor coordination"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Core dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Classification and caching
+lru = "0.12"
+parking_lot = "0.12"
+
+# JSON Schema validation
+jsonschema = "0.18"
+
+# Graph algorithms for DAG
+petgraph = "0.6"
+
+# Configuration
+config = "0.14"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Internal dependencies
+pos_thoughts = { path = "../pos_thoughts" }
+# pos_projects = { path = "../pos_projects" }  # TODO: Add when available
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.13"
+tempfile = "3.0"
+
+[features]
+default = []
+test-utils = []

@@ -1,0 +1,168 @@
+agent_id: agent_finance_tracker
+agent_name: Financial & Purchase Auditor
+version: 1.0.0
+pillar: purchases
+model_tier: tier_a
+description: Double-entry ledger management, receipt OCR parsing, subscription auditing, and budget alerts
+
+capabilities:
+  - receipt_ocr
+  - expense_logging
+  - subscription_detection
+  - budget_envelope_tracking
+  - transaction_reconciliation
+  - fraud_detection
+
+tools:
+  - ingest_receipt
+  - audit_subscriptions
+  - log_expense
+  - budget_status
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.2
+  max_tokens: 4096
+
+system_prompt: |
+  You are the Financial & Purchase Auditor agent for Personal OS. Your role is to:
+
+  1. Process receipt images via OCR and extract structured transaction data
+  2. Maintain double-entry accounting ledger (assets, liabilities, expenses, income)
+  3. Detect recurring subscription patterns and warn about upcoming renewals
+  4. Track budget envelopes and alert when approaching or exceeding limits
+  5. Flag suspicious transactions for fraud review
+  6. Generate quarterly expense reports for tax purposes
+
+  FINANCIAL SAFETY (NEVER VIOLATE):
+  - NEVER execute payments or authorize transactions without HITL approval
+  - All financial operations require explicit user confirmation
+  - Suspicious transactions must be quarantined for manual review
+  - Budget overages must trigger immediate alerts
+
+  CONSTRAINTS:
+  - Receipt OCR extraction should be verified against bank statements when possible
+  - Subscription renewals require 7-day advance notice
+  - Budget alerts trigger at 80% of limit (warning) and 100% (breach)
+  - Quarterly tax exports must preserve all audit trail metadata
+
+tool_schemas:
+  ingest_receipt:
+    input:
+      image_path: string
+      category: string
+    output:
+      purchase_id: string
+      vendor: string
+      amount_cents: integer
+      currency: string
+      purchased_at: datetime
+
+  audit_subscriptions:
+    input:
+      upcoming_days:
+        type: integer
+        default: 30
+    output:
+      type: array
+      items:
+        properties:
+          subscription_id: string
+          vendor: string
+          amount_cents: integer
+          billing_period: string
+          next_renewal_date: date
+          days_until_renewal: integer
+
+capability_token:
+  permissions:
+    - purchases:read
+    - purchases:write
+    - subscriptions:read
+    - subscriptions:write
+    - budget:read
+    - vault:lease:banking_api_keys:read_only
+  restrictions:
+    max_receipt_size_mb: 10
+    max_transactions_per_day: 1000
+    requires_hitl: true  # All write operations require HITL
+
+workflow_integrations:
+  - wf_receipt_ingestion
+  - wf_subscription_renewal_alert
+  - wf_weekly_budget_review
+  - wf_quarterly_tax_export
+
+background_tasks:
+  - name: subscription_renewal_monitor
+    schedule: "0 9 * * *"  # Daily at 9 AM
+    description: Check for subscriptions renewing in next 7 days
+  - name: budget_status_check
+    schedule: "0 20 * * *"  # Daily at 8 PM
+    description: Calculate daily budget status and alert if approaching limits
+  - name: forgotten_subscription_detector
+    schedule: "0 10 * * 1"  # Weekly Monday at 10 AM
+    description: Detect subscriptions with no usage in 60+ days
+  - name: transaction_reconciliation
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    description: Reconcile manual expense logs with imported bank transactions
+
+metrics:
+  success_criteria:
+    - receipt_ocr_accuracy > 0.90
+    - subscription_detection_rate > 0.95
+    - budget_alert_timeliness_hours < 4
+  performance_targets:
+    receipt_ocr_time_s: 3
+    subscription_audit_time_s: 5
+    budget_calculation_time_ms: 100
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: linear
+    backoff_base_ms: 2000
+  fallback_behavior:
+    on_ocr_failure: queue_for_manual_entry
+    on_reconciliation_mismatch: flag_for_review
+    on_budget_api_failure: use_cached_state
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - full_account_numbers
+    - routing_numbers
+    - cvv_codes
+  audit_trail: true
+
+fraud_detection:
+  heuristics:
+    duplicate_charge_window_hours: 24
+    unusual_amount_sigma: 3.0
+    off_hours_threshold: "22:00-06:00"
+    suspicious_vendor_keywords:
+      - VERIFY ACCOUNT
+      - URGENT PAYMENT
+      - BILLING ERROR
+  quarantine_triggers:
+    - duplicate_charge_detected
+    - unusual_amount
+    - unrecognized_vendor
+    - off_hours_transaction
+    - suspicious_vendor_name
+
+budget_envelopes:
+  default_categories:
+    - category: Dining & Restaurants
+      monthly_limit_cents: 40000
+    - category: Software & Subscriptions
+      monthly_limit_cents: 15000
+    - category: Groceries
+      monthly_limit_cents: 60000
+    - category: Transportation
+      monthly_limit_cents: 30000
+    - category: Entertainment
+      monthly_limit_cents: 20000
+    - category: Healthcare
+      monthly_limit_cents: 25000

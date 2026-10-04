@@ -1,0 +1,330 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Personal OS Vault Security Contract",
+  "version": "1.0.0",
+  "description": "Zero-knowledge encrypted vault wire contract with memory-scrubbed secret leasing",
+  "definitions": {
+    "SecretLeaseRequest": {
+      "type": "object",
+      "required": ["secret_name", "requesting_agent_id", "purpose"],
+      "properties": {
+        "secret_name": {
+          "type": "string",
+          "description": "Unique identifier of the vault item",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "requesting_agent_id": {
+          "type": "string",
+          "description": "ID of the agent or process requesting access",
+          "pattern": "^agent_[a-z0-9_]+$"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Human-readable justification for access",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "description": "Requested lease duration in seconds",
+          "minimum": 60,
+          "maximum": 3600,
+          "default": 300
+        },
+        "scope": {
+          "type": "string",
+          "description": "Restricted scope for the credential (e.g., 'read_only', 'api_call:github')",
+          "maxLength": 255
+        },
+        "requires_hitl": {
+          "type": "boolean",
+          "description": "Whether this request requires human-in-the-loop approval",
+          "default": false
+        }
+      }
+    },
+    "SecretLeaseResponse": {
+      "type": "object",
+      "required": ["lease_id", "status"],
+      "properties": {
+        "lease_id": {
+          "type": "string",
+          "description": "Unique lease identifier",
+          "pattern": "^lease_[a-f0-9]{32}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["granted", "pending_hitl", "denied", "expired"],
+          "description": "Current lease status"
+        },
+        "secret_value": {
+          "type": "string",
+          "description": "The actual secret (only present if status=granted). MUST be wrapped in ZeroizeOnDrop buffer.",
+          "writeOnly": true
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when lease automatically revokes"
+        },
+        "granted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Effective scope of the granted lease"
+        },
+        "warning": {
+          "type": "string",
+          "description": "Optional security warning or constraint"
+        }
+      }
+    },
+    "SecretStoreRequest": {
+      "type": "object",
+      "required": ["name", "secret_value", "item_type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique name for the vault item",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "secret_value": {
+          "type": "string",
+          "description": "Plaintext secret to encrypt and store (memory-scrubbed after encryption)",
+          "minLength": 1,
+          "writeOnly": true
+        },
+        "item_type": {
+          "type": "string",
+          "enum": ["api_key", "password", "token", "ssh_key", "certificate", "encryption_key", "other"],
+          "description": "Type of credential for categorization and handling rules"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Unencrypted metadata (service name, username, URL, etc.)",
+          "properties": {
+            "service": { "type": "string" },
+            "username": { "type": "string" },
+            "url": { "type": "string", "format": "uri" },
+            "notes": { "type": "string", "maxLength": 1000 }
+          }
+        },
+        "auto_rotate_days": {
+          "type": "integer",
+          "description": "Automatic rotation reminder interval in days (0 = no rotation)",
+          "minimum": 0,
+          "maximum": 365,
+          "default": 0
+        }
+      }
+    },
+    "SecretStoreResponse": {
+      "type": "object",
+      "required": ["vault_item_id", "created"],
+      "properties": {
+        "vault_item_id": {
+          "type": "string",
+          "pattern": "^vault_[a-f0-9]{32}$"
+        },
+        "created": {
+          "type": "boolean",
+          "description": "true if newly created, false if updated existing"
+        },
+        "encrypted_with": {
+          "type": "string",
+          "description": "Encryption algorithm used",
+          "default": "ChaCha20-Poly1305"
+        },
+        "kdf": {
+          "type": "string",
+          "description": "Key derivation function used",
+          "default": "Argon2id"
+        },
+        "stored_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "LeaseRevocationRequest": {
+      "type": "object",
+      "required": ["lease_id"],
+      "properties": {
+        "lease_id": {
+          "type": "string",
+          "pattern": "^lease_[a-f0-9]{32}$"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for revocation",
+          "maxLength": 500
+        }
+      }
+    },
+    "LeaseRevocationResponse": {
+      "type": "object",
+      "required": ["revoked", "scrubbed"],
+      "properties": {
+        "revoked": {
+          "type": "boolean",
+          "description": "Whether the lease was successfully revoked"
+        },
+        "scrubbed": {
+          "type": "boolean",
+          "description": "Whether in-memory secret was zeroized"
+        },
+        "revoked_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "VaultAuditLogEntry": {
+      "type": "object",
+      "required": ["event_id", "event_type", "timestamp", "agent_id"],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "pattern": "^audit_[a-f0-9]{32}$"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": ["lease_requested", "lease_granted", "lease_denied", "lease_revoked", "secret_stored", "secret_deleted", "failed_access"]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "vault_item_id": {
+          "type": "string"
+        },
+        "lease_id": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "failure_reason": {
+          "type": "string"
+        },
+        "hitl_approved_by": {
+          "type": "string",
+          "description": "User ID if HITL approval was required"
+        },
+        "ip_address": {
+          "type": "string",
+          "description": "Source IP for external access attempts"
+        }
+      }
+    }
+  },
+  "operations": {
+    "request_lease": {
+      "description": "Request ephemeral scoped access to a vault secret",
+      "request": { "$ref": "#/definitions/SecretLeaseRequest" },
+      "response": { "$ref": "#/definitions/SecretLeaseResponse" },
+      "errors": [
+        { "code": "VAULT_001", "message": "Secret not found" },
+        { "code": "VAULT_002", "message": "Access denied - insufficient privileges" },
+        { "code": "VAULT_003", "message": "HITL approval required" },
+        { "code": "VAULT_004", "message": "Master key not unlocked" },
+        { "code": "VAULT_005", "message": "Lease limit exceeded" }
+      ]
+    },
+    "store_secret": {
+      "description": "Encrypt and store a new secret in the vault",
+      "request": { "$ref": "#/definitions/SecretStoreRequest" },
+      "response": { "$ref": "#/definitions/SecretStoreResponse" },
+      "errors": [
+        { "code": "VAULT_010", "message": "Duplicate secret name" },
+        { "code": "VAULT_011", "message": "Encryption failed" },
+        { "code": "VAULT_012", "message": "Master key not available" }
+      ]
+    },
+    "revoke_lease": {
+      "description": "Immediately revoke an active lease and scrub memory",
+      "request": { "$ref": "#/definitions/LeaseRevocationRequest" },
+      "response": { "$ref": "#/definitions/LeaseRevocationResponse" },
+      "errors": [
+        { "code": "VAULT_020", "message": "Lease not found" },
+        { "code": "VAULT_021", "message": "Lease already expired" }
+      ]
+    },
+    "audit_log": {
+      "description": "Retrieve tamper-evident audit log of vault access",
+      "request": {
+        "type": "object",
+        "properties": {
+          "vault_item_id": { "type": "string" },
+          "agent_id": { "type": "string" },
+          "since": { "type": "string", "format": "date-time" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 }
+        }
+      },
+      "response": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/VaultAuditLogEntry" }
+          },
+          "total_count": { "type": "integer" },
+          "merkle_root": {
+            "type": "string",
+            "description": "Current Merkle root hash of audit log for tamper detection"
+          }
+        }
+      }
+    }
+  },
+  "security_invariants": {
+    "memory_safety": [
+      "All decrypted secrets MUST be held in types implementing zeroize::ZeroizeOnDrop",
+      "Secret values MUST NOT be cloned or copied to non-zeroizing buffers",
+      "Secret values MUST NOT appear in debug output, logs, or panic messages",
+      "Lease expiry MUST trigger immediate memory scrubbing via Drop"
+    ],
+    "cryptographic_requirements": [
+      "Master key derivation MUST use Argon2id with memory_cost >= 64MB, time_cost >= 3",
+      "Secret encryption MUST use ChaCha20-Poly1305 or AES-256-GCM with unique nonces",
+      "Nonces MUST be cryptographically random (via OsRng) and stored with ciphertext",
+      "Salt MUST be unique per vault item and at least 32 bytes"
+    ],
+    "access_control": [
+      "Leases MUST have explicit expiry times (no indefinite leases)",
+      "Maximum lease duration is 1 hour (3600 seconds)",
+      "Expired leases MUST be purged and secrets scrubbed",
+      "Failed access attempts MUST be logged to audit trail",
+      "Three consecutive failed attempts MUST trigger rate limiting"
+    ],
+    "hitl_requirements": [
+      "Export of permanent credentials (ssh_key, certificate, encryption_key) REQUIRES HITL approval",
+      "First-time access to a vault item by a new agent REQUIRES HITL approval",
+      "Access during non-business hours (22:00-06:00 local time) MAY require HITL approval based on policy"
+    ],
+    "egress_protection": [
+      "All stdout, stderr, log files MUST pass through RedactionSentinel",
+      "LLM context windows MUST NOT receive plaintext secrets",
+      "Webhook/API requests MUST be scanned for leaked credentials before transmission",
+      "Network egress to non-local destinations MUST be audited"
+    ]
+  },
+  "integration": {
+    "os_keychain": {
+      "macos": "Keychain Services (Security.framework)",
+      "linux": "Secret Service API (libsecret)",
+      "windows": "Windows Credential Manager"
+    },
+    "backup": {
+      "encrypted_export": "AES-256-GCM encrypted backup with separate passphrase",
+      "recovery_mode": "Master key recovery via split-key or hardware token"
+    }
+  }
+}

@@ -1,0 +1,139 @@
+agent_id: agent_thought_synthesizer
+agent_name: Second Brain Synthesizer
+version: 1.0.0
+pillar: thoughts
+model_tier: tier_a
+description: Zettelkasten knowledge graph manager, associative thought capture, and daily reflection synthesis
+
+capabilities:
+  - quick_capture
+  - wikilink_parsing
+  - knowledge_graph_traversal
+  - associative_search
+  - daily_journal_synthesis
+  - concept_extraction
+  - bidirectional_linking
+
+tools:
+  - capture_note
+  - query_graph
+  - find_associative
+  - daily_journal
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.7
+  max_tokens: 8192
+
+system_prompt: |
+  You are the Second Brain Synthesizer agent for Personal OS. Your role is to:
+
+  1. Capture fleeting thoughts instantly without friction
+  2. Parse markdown wikilinks [[like this]] and build bidirectional graph
+  3. Extract key concepts and entities for semantic linking
+  4. Find non-obvious associative connections between thoughts via embeddings
+  5. Synthesize daily journal entries from completed tasks, thoughts, and interactions
+  6. Facilitate Zettelkasten-style atomic note-taking workflow
+
+  PRINCIPLES:
+  - Every thought should be atomic (one idea per note)
+  - Thoughts should be densely linked to related concepts
+  - Daily journal synthesis should be reflective, not just a log
+  - Surface surprising connections that user might not notice
+  - Use progressive summarization for long-term retention
+
+  CONSTRAINTS:
+  - Never modify user's original thought content without explicit permission
+  - Wikilink suggestions should be high-confidence only (>0.8 similarity)
+  - Daily synthesis should be under 500 words
+
+tool_schemas:
+  capture_note:
+    input:
+      title: string
+      content: string
+      thought_type:
+        type: string
+        enum: [fleeting, journal, atomic, concept]
+        default: fleeting
+      tags:
+        type: array
+        items: string
+    output:
+      thought_id: string
+      wikilinks_extracted:
+        type: array
+        items: string
+
+  find_associative:
+    input:
+      query: string
+      limit:
+        type: integer
+        default: 5
+        max: 20
+      min_similarity:
+        type: number
+        default: 0.7
+        min: 0.0
+        max: 1.0
+    output:
+      type: array
+      items:
+        properties:
+          thought_id: string
+          title: string
+          similarity: number
+          snippet: string
+
+capability_token:
+  permissions:
+    - thoughts:read
+    - thoughts:write
+    - search:query
+    - vault:lease:openai_api_key:embedding_only
+  restrictions:
+    max_daily_captures: 500
+    max_thought_size_bytes: 102400  # 100 KB
+    max_graph_depth: 5
+
+workflow_integrations:
+  - wf_morning_brief
+  - wf_evening_reflection
+  - wf_weekly_synthesis
+
+background_tasks:
+  - name: orphan_thought_detector
+    schedule: "0 20 * * *"  # Daily at 8 PM
+    description: Find thoughts with no links (candidates for connection)
+  - name: concept_clustering
+    schedule: "0 2 * * 0"  # Weekly Sunday at 2 AM
+    description: Run graph clustering to discover emergent topic clusters
+  - name: daily_journal_reminder
+    schedule: "0 21 * * *"  # Daily at 9 PM
+    description: Prompt user to reflect on the day
+
+metrics:
+  success_criteria:
+    - average_links_per_thought > 2.0
+    - daily_journal_completion_rate > 0.8
+    - associative_search_relevance > 0.75
+  performance_targets:
+    capture_latency_ms: 100
+    graph_traversal_time_ms: 50
+    daily_synthesis_generation_time_s: 10
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: none
+  fallback_behavior:
+    on_embedding_failure: save_without_semantic_links
+    on_graph_query_timeout: return_partial_results
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - thought_content  # Don't log full thought content
+  audit_trail: false

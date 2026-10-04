@@ -1,0 +1,157 @@
+workflow_id: wf_file_ingestion
+workflow_name: File Ingestion & Indexing Pipeline
+version: 1.0.0
+description: Watch, ingest, extract text, generate embeddings, and index files into hybrid search
+
+trigger_conditions:
+  - type: file_watcher_event
+    events: [created, modified]
+  - type: manual_invoke
+
+input_parameters:
+  file_path:
+    type: string
+    required: true
+    description: Path to the file to ingest
+  force_reindex:
+    type: boolean
+    default: false
+    description: Force reindex even if file hash exists
+
+steps:
+  - step_id: check_file_exists
+    name: Validate File Exists
+    action: file_check
+    input:
+      path: "{{ input.file_path }}"
+    output_variable: file_info
+    timeout_seconds: 2
+
+  - step_id: compute_blake3_hash
+    name: Compute BLAKE3 Content Hash
+    agent: agent_file_indexer
+    action: hash_file
+    input:
+      file_path: "{{ input.file_path }}"
+    output_variable: file_hash
+    timeout_seconds: 10
+    depends_on:
+      - check_file_exists
+
+  - step_id: check_duplicate
+    name: Check for Duplicate by Hash
+    agent: agent_file_indexer
+    tool: deduplicate
+    input:
+      blake3_hash: "{{ file_hash.hash }}"
+    output_variable: duplicate_check
+    timeout_seconds: 5
+    depends_on:
+      - compute_blake3_hash
+    skip_if: "{{ input.force_reindex }}"
+
+  - step_id: extract_text
+    name: Extract Text Content
+    agent: agent_file_indexer
+    action: extract_text
+    input:
+      file_path: "{{ input.file_path }}"
+      mime_type: "{{ file_info.mime_type }}"
+    output_variable: extracted_text
+    timeout_seconds: 60
+    depends_on:
+      - check_file_exists
+    skip_if: "{{ duplicate_check.is_duplicate && !input.force_reindex }}"
+
+  - step_id: generate_embedding
+    name: Generate Semantic Embedding
+    agent: agent_file_indexer
+    action: embed_text
+    input:
+      text: "{{ extracted_text.content }}"
+      model: text-embedding-3-small
+    output_variable: embedding_vector
+    timeout_seconds: 30
+    depends_on:
+      - extract_text
+    retry:
+      max_attempts: 2
+      backoff_ms: 5000
+
+  - step_id: index_tantivy
+    name: Index in Tantivy (BM25)
+    agent: agent_file_indexer
+    action: index_tantivy
+    input:
+      file_id: "{{ file_hash.hash }}"
+      file_path: "{{ input.file_path }}"
+      title: "{{ file_info.name }}"
+      content: "{{ extracted_text.content }}"
+      mime_type: "{{ file_info.mime_type }}"
+    output_variable: tantivy_doc_id
+    timeout_seconds: 10
+    depends_on:
+      - extract_text
+
+  - step_id: store_in_database
+    name: Store File Metadata in SQLite
+    agent: agent_file_indexer
+    tool: ingest_file
+    input:
+      file_path: "{{ input.file_path }}"
+      blake3_hash: "{{ file_hash.hash }}"
+      mime_type: "{{ file_info.mime_type }}"
+      size_bytes: "{{ file_info.size }}"
+      extracted_text: "{{ extracted_text.content }}"
+      embedding: "{{ embedding_vector.vector }}"
+    output_variable: file_record
+    timeout_seconds: 10
+    depends_on:
+      - compute_blake3_hash
+      - extract_text
+      - generate_embedding
+      - index_tantivy
+
+  - step_id: move_to_cas
+    name: Move File to Content-Addressable Storage
+    agent: agent_file_indexer
+    action: store_blob
+    input:
+      source_path: "{{ input.file_path }}"
+      blake3_hash: "{{ file_hash.hash }}"
+      preserve_original: true
+    output_variable: cas_path
+    timeout_seconds: 30
+    depends_on:
+      - store_in_database
+
+output:
+  file_id: "{{ file_record.file_id }}"
+  blake3_hash: "{{ file_hash.hash }}"
+  indexed: true
+  cas_path: "{{ cas_path }}"
+  was_duplicate: "{{ duplicate_check.is_duplicate || false }}"
+
+error_handling:
+  on_step_failure: fail_and_log
+  on_ocr_failure: store_without_text
+  on_embedding_failure: index_text_only
+  final_notification: on_error_only
+
+notifications:
+  on_success:
+    - channel: log
+      template: "✅ File indexed: {{ input.file_path }}"
+  on_failure:
+    - channel: cli
+      template: "⚠️ File ingestion failed: {{ input.file_path }} - {{ error.message }}"
+
+metrics:
+  track_execution_time: true
+  track_success_rate: true
+  track_file_types: true
+  alert_on_consecutive_failures: 5
+
+parallel_execution:
+  index_tantivy:
+    can_run_parallel_with: [generate_embedding]

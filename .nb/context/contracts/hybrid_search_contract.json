@@ -1,0 +1,408 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Personal OS Hybrid Search Contract",
+  "version": "1.0.0",
+  "description": "Combined Tantivy BM25 + Vector Embedding query wire contract for sub-15ms search",
+  "definitions": {
+    "HybridSearchRequest": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural language search query",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "search_mode": {
+          "type": "string",
+          "enum": ["hybrid", "lexical_only", "semantic_only"],
+          "default": "hybrid",
+          "description": "Search algorithm selection"
+        },
+        "semantic_weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.5,
+          "description": "Weight for semantic (vector) vs lexical (BM25) scores in hybrid mode"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum number of results to return"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Pagination offset"
+        },
+        "filters": {
+          "$ref": "#/definitions/SearchFilters"
+        },
+        "boost": {
+          "$ref": "#/definitions/SearchBoost"
+        },
+        "min_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Minimum relevance score threshold (0.0-1.0)"
+        }
+      }
+    },
+    "SearchFilters": {
+      "type": "object",
+      "description": "Optional filters to narrow search scope",
+      "properties": {
+        "pillar": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["projects", "files", "thoughts", "activities", "workflows", "credentials", "interactions", "purchases"]
+          },
+          "description": "Filter by Personal OS pillar"
+        },
+        "mime_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Filter files by MIME type (e.g., ['application/pdf', 'text/markdown'])"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Filter by tags (thoughts, projects)"
+        },
+        "date_range": {
+          "type": "object",
+          "properties": {
+            "start": { "type": "string", "format": "date-time" },
+            "end": { "type": "string", "format": "date-time" }
+          }
+        },
+        "project_id": {
+          "type": "string",
+          "description": "Restrict search to a specific project"
+        },
+        "contact_id": {
+          "type": "string",
+          "description": "Restrict search to interactions with a specific contact"
+        },
+        "file_size_bytes": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "integer", "minimum": 0 },
+            "max": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "SearchBoost": {
+      "type": "object",
+      "description": "Relevance boosting parameters",
+      "properties": {
+        "recency_boost": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 5.0,
+          "default": 1.0,
+          "description": "Boost recent documents (1.0 = no boost, >1.0 = boost recent)"
+        },
+        "title_boost": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 10.0,
+          "default": 2.0,
+          "description": "Boost matches in title/name fields"
+        },
+        "exact_match_boost": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 10.0,
+          "default": 1.5,
+          "description": "Boost exact phrase matches"
+        }
+      }
+    },
+    "HybridSearchResponse": {
+      "type": "object",
+      "required": ["results", "total_count", "query_time_ms"],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/SearchResult" }
+        },
+        "total_count": {
+          "type": "integer",
+          "description": "Total matching documents (before limit/offset)"
+        },
+        "query_time_ms": {
+          "type": "number",
+          "description": "Total query execution time in milliseconds"
+        },
+        "breakdown": {
+          "$ref": "#/definitions/QueryBreakdown"
+        },
+        "suggestions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Query suggestions or corrections"
+        }
+      }
+    },
+    "SearchResult": {
+      "type": "object",
+      "required": ["id", "pillar", "title", "score"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the result"
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["projects", "files", "thoughts", "activities", "workflows", "credentials", "interactions", "purchases"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title or name"
+        },
+        "snippet": {
+          "type": "string",
+          "description": "Highlighted excerpt with query matches",
+          "maxLength": 500
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Normalized relevance score (0.0-1.0)"
+        },
+        "lexical_score": {
+          "type": "number",
+          "description": "Raw BM25 lexical score"
+        },
+        "semantic_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Vector cosine similarity score"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Type-specific metadata",
+          "properties": {
+            "file_path": { "type": "string" },
+            "mime_type": { "type": "string" },
+            "size_bytes": { "type": "integer" },
+            "created_at": { "type": "string", "format": "date-time" },
+            "updated_at": { "type": "string", "format": "date-time" },
+            "tags": { "type": "array", "items": { "type": "string" } },
+            "project_name": { "type": "string" },
+            "contact_name": { "type": "string" }
+          }
+        },
+        "highlights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string" },
+              "fragments": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "QueryBreakdown": {
+      "type": "object",
+      "description": "Performance and query execution breakdown",
+      "properties": {
+        "lexical_time_ms": {
+          "type": "number",
+          "description": "Tantivy BM25 query time"
+        },
+        "semantic_time_ms": {
+          "type": "number",
+          "description": "Vector similarity search time"
+        },
+        "fusion_time_ms": {
+          "type": "number",
+          "description": "Reciprocal rank fusion time"
+        },
+        "total_indexed_docs": {
+          "type": "integer",
+          "description": "Total documents in the index"
+        },
+        "lexical_hits": {
+          "type": "integer",
+          "description": "Number of BM25 matches"
+        },
+        "semantic_hits": {
+          "type": "integer",
+          "description": "Number of vector matches"
+        },
+        "fusion_method": {
+          "type": "string",
+          "enum": ["rrf", "weighted_sum", "linear_combination"],
+          "description": "Score fusion algorithm used"
+        }
+      }
+    },
+    "IndexStatsRequest": {
+      "type": "object",
+      "properties": {
+        "pillar": {
+          "type": "string",
+          "description": "Optional pillar filter for stats"
+        }
+      }
+    },
+    "IndexStatsResponse": {
+      "type": "object",
+      "properties": {
+        "total_documents": {
+          "type": "integer"
+        },
+        "total_size_bytes": {
+          "type": "integer"
+        },
+        "lexical_index": {
+          "type": "object",
+          "properties": {
+            "tantivy_segments": { "type": "integer" },
+            "unique_terms": { "type": "integer" },
+            "index_size_bytes": { "type": "integer" }
+          }
+        },
+        "semantic_index": {
+          "type": "object",
+          "properties": {
+            "embedding_dimension": { "type": "integer" },
+            "vector_count": { "type": "integer" },
+            "index_type": { "type": "string", "enum": ["hnsw", "flat", "ivf"] }
+          }
+        },
+        "by_pillar": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "doc_count": { "type": "integer" },
+              "size_bytes": { "type": "integer" }
+            }
+          }
+        },
+        "last_indexed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "operations": {
+    "hybrid_search": {
+      "description": "Execute hybrid BM25 + vector search with reciprocal rank fusion",
+      "request": { "$ref": "#/definitions/HybridSearchRequest" },
+      "response": { "$ref": "#/definitions/HybridSearchResponse" },
+      "performance_target": {
+        "p50_latency_ms": 8,
+        "p99_latency_ms": 15,
+        "max_latency_ms": 50
+      },
+      "errors": [
+        { "code": "SEARCH_001", "message": "Invalid query syntax" },
+        { "code": "SEARCH_002", "message": "Query timeout exceeded" },
+        { "code": "SEARCH_003", "message": "Index unavailable" },
+        { "code": "SEARCH_004", "message": "Embedding generation failed" }
+      ]
+    },
+    "index_stats": {
+      "description": "Retrieve search index statistics",
+      "request": { "$ref": "#/definitions/IndexStatsRequest" },
+      "response": { "$ref": "#/definitions/IndexStatsResponse" }
+    }
+  },
+  "implementation_details": {
+    "lexical_search": {
+      "engine": "Tantivy (Rust native)",
+      "algorithm": "BM25",
+      "tokenizer": "en_stem (English stemming)",
+      "fields_indexed": ["title", "content", "tags", "file_path", "metadata"],
+      "field_weights": {
+        "title": 3.0,
+        "content": 1.0,
+        "tags": 2.0
+      }
+    },
+    "semantic_search": {
+      "embedding_model": "all-MiniLM-L6-v2 (384d) or text-embedding-3-small (1536d)",
+      "similarity_metric": "cosine",
+      "vector_db": "sqlite-vec extension with HNSW index",
+      "hnsw_parameters": {
+        "M": 16,
+        "ef_construction": 200,
+        "ef_search": 100
+      }
+    },
+    "fusion_algorithm": {
+      "method": "Reciprocal Rank Fusion (RRF)",
+      "formula": "score(d) = sum(1 / (k + rank_i(d))) for all ranking functions",
+      "k_constant": 60,
+      "fallback": "Weighted linear combination if RRF produces ties"
+    },
+    "optimization": {
+      "caching": "LRU cache for frequent queries (capacity: 1000)",
+      "parallel_execution": "Lexical and semantic searches run in parallel via Tokio",
+      "batch_embedding": "Batch encode queries when multiple searches issued",
+      "index_warming": "HNSW index loaded into memory on daemon start"
+    }
+  },
+  "query_examples": [
+    {
+      "description": "Simple hybrid search across all pillars",
+      "request": {
+        "query": "rust async tokio patterns",
+        "limit": 10
+      }
+    },
+    {
+      "description": "Semantic-only search for similar thoughts",
+      "request": {
+        "query": "How do I implement zero-copy serialization?",
+        "search_mode": "semantic_only",
+        "filters": {
+          "pillar": ["thoughts", "files"]
+        },
+        "limit": 5
+      }
+    },
+    {
+      "description": "Lexical search for exact API key references",
+      "request": {
+        "query": "\"OPENAI_API_KEY\" OR \"sk-proj-\"",
+        "search_mode": "lexical_only",
+        "filters": {
+          "mime_types": ["text/plain", "text/markdown", "application/json"]
+        }
+      }
+    },
+    {
+      "description": "Recent files with recency boost",
+      "request": {
+        "query": "meeting notes Q4 planning",
+        "filters": {
+          "date_range": {
+            "start": "2024-10-01T00:00:00Z",
+            "end": "2024-12-31T23:59:59Z"
+          }
+        },
+        "boost": {
+          "recency_boost": 2.5
+        }
+      }
+    }
+  ]
+}

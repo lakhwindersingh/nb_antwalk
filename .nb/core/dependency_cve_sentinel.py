@@ -69,7 +69,7 @@ class DependencyCVESentinel:
                          list(workspace_root.glob("**/pyproject.toml"))
 
         for mf in manifest_files:
-            if any(p in str(mf) for p in [".git", "node_modules", ".workspaces"]):
+            if any(p in str(mf) for p in [".git", "node_modules", ".workspaces", ".nb/workspaces"]):
                 continue
             try:
                 content = mf.read_text(encoding="utf-8", errors="ignore")

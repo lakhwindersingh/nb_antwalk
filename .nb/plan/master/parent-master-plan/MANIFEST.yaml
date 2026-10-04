@@ -1,0 +1,55 @@
+plan_id: master_parent_framework
+plan_name: Parent Master Context Engineering Framework
+version: 7.5.0
+capability_rating: Master
+plan_type: orchestration
+status: active
+parent_plan: null
+dependencies: []
+file_versions:
+  concise:
+    path: concise.md
+    version: 7.5.0
+    last_modified: '2026-09-24'
+    content_hash: e1d3a9fccf4645544ccd0e43a67ef22c0b47b909f3d718738f92af6ef223aff0
+    line_count: 118
+    primary_purpose: Complete specification for agentic context
+  detailed:
+    path: detailed.md
+    version: 7.5.0
+    last_modified: '2026-09-24'
+    content_hash: ae355f28f12b1c60fbf6ec3fdac2738750c9555a0ca7868a769582f8b759d144
+    line_count: 1630
+    primary_purpose: Extended implementation guide with complete capability breakdowns
+  readme:
+    path: README.md
+    version: 7.5.0
+    last_modified: '2026-09-24'
+    content_hash: 4649e01c955f52ab9a97668f4e8decb20c7ebf9de2adbbb50b688882728bb1a4
+    line_count: 29
+    primary_purpose: Quick reference and navigation
+key_capabilities:
+- Autonomous Operations on MVS Inputs (CAP-01)
+- Context Poisoning Detection & Rollback (CAP-02)
+- Context Compression & Token FinOps (CAP-03)
+- Dynamic Multi-Model Cascading (CAP-04)
+- Git Worktree Workspace Isolation (CAP-05)
+- Cryptographic Merkle State Ledger (CAP-08)
+- Autonomous Closed-Loop CI/CD Triad (CAP-16)
+- 3-Tier Layered Context Precedence Hierarchy (CAP-20)
+implementation_phases:
+  phase_1: Foundation Architecture & Quad-Space Setup
+  phase_2: Core 38 Engines & Merkle Ledger Chaining
+  phase_3: Multi-Model Routing & Token FinOps Engine
+  phase_4: Autonomous CI/CD Triad & Self-Healing Gates
+  phase_5: Enterprise Multi-Tenant Gateway & Observability Hub
+success_metrics:
+  merkle_integrity: 100%
+  token_reduction: 50-70%
+  self_healing_bounded_retries: <=3
+  cross_plugin_synchronization: Zero drift
+related_contracts:
+- .nb/context/contracts/
+related_rules:
+- .nb/context/rules/
+- .nb/context/invariants/

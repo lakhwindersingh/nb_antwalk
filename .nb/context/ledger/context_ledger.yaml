@@ -1,22 +1,78 @@
-ledger_version: "7.5.0"
+ledger_version: 7.5.0
 project:
-  name: "nb_fairyfly"
-  tier: "plan_free"
-  mode: "multi_module"
+  name: nb_fairyfly
+  tier: plan_free
+  mode: multi_module
 ledger_chain:
-  - block_id: 0
-    block_type: "GENESIS"
-    prev_block_hash: "0000000000000000000000000000000000000000000000000000000000000000"
-    timestamp: "2026-10-04T09:47:34.881381Z"
-    merkle_root: "0000000000000000000000000000000000000000000000000000000000000000"
-    current_block_hash: "78a4a65740afce2f07ca3210d0071240fd86f0e5a73795c55a619064d604f861"
-    action: "BOOTSTRAP_FREE_WORKSPACE_GENESIS"
+- block_id: 0
+  block_type: GENESIS
+  prev_block_hash: '0000000000000000000000000000000000000000000000000000000000000000'
+  timestamp: '2026-10-04T09:47:34.881381Z'
+  merkle_root: '0000000000000000000000000000000000000000000000000000000000000000'
+  current_block_hash: 78a4a65740afce2f07ca3210d0071240fd86f0e5a73795c55a619064d604f861
+  action: BOOTSTRAP_FREE_WORKSPACE_GENESIS
+- block_id: 1
+  block_type: STATE_UPDATE
+  prev_block_hash: 78a4a65740afce2f07ca3210d0071240fd86f0e5a73795c55a619064d604f861
+  timestamp: '2026-10-04T09:54:15.096568+00:00'
+  merkle_root: f6da1f43963cf009db42eb1e5f623bfbbf97f95afbfc5862afa483625a1f6eed
+  current_block_hash: 6ab05d31142c34760e47950965a4c19107020c0625e5f7e9503cc97683b4f880
+  action: PR_GATE_VERIFICATION_PASSED
+  block_hash: 6ab05d31142c34760e47950965a4c19107020c0625e5f7e9503cc97683b4f880
+- block_id: 2
+  block_type: STATE_UPDATE
+  prev_block_hash: 6ab05d31142c34760e47950965a4c19107020c0625e5f7e9503cc97683b4f880
+  timestamp: '2026-10-04T09:54:38.147418+00:00'
+  merkle_root: f6da1f43963cf009db42eb1e5f623bfbbf97f95afbfc5862afa483625a1f6eed
+  current_block_hash: 6f8c7500ee9c0304056c8a8b841346220b863a867a37e9514ac205ccee9d5151
+  action: AUTONOMOUS_HEAL_MODULE_global_system
+  block_hash: 6f8c7500ee9c0304056c8a8b841346220b863a867a37e9514ac205ccee9d5151
+- block_id: 3
+  block_type: STATE_UPDATE
+  prev_block_hash: 6f8c7500ee9c0304056c8a8b841346220b863a867a37e9514ac205ccee9d5151
+  timestamp: '2026-10-04T09:54:38.149752+00:00'
+  merkle_root: f6da1f43963cf009db42eb1e5f623bfbbf97f95afbfc5862afa483625a1f6eed
+  current_block_hash: 7c0d8292003bdf9da8eff9b26345746aabd1339a9aa25c01a2dc5eb977877a27
+  action: AUTONOMOUS_PIPELINE_autocicd_20261004_095438
+  block_hash: 7c0d8292003bdf9da8eff9b26345746aabd1339a9aa25c01a2dc5eb977877a27
+- block_id: 4
+  block_type: STATE_UPDATE
+  prev_block_hash: 7c0d8292003bdf9da8eff9b26345746aabd1339a9aa25c01a2dc5eb977877a27
+  timestamp: '2026-10-04T14:33:53.891618+00:00'
+  merkle_root: 42ed9f70d3d363514aa2071897d72d71bb4be7d7de774659e76a7e5ffb20e9c2
+  current_block_hash: 8b18b63711db2c8dd6c35e94f5923118900d31f4e8a9b5c9990cc6c6aa8c3109
+  action: AUTONOMOUS_HEAL_MODULE_global_system
+  block_hash: 8b18b63711db2c8dd6c35e94f5923118900d31f4e8a9b5c9990cc6c6aa8c3109
+- block_id: 5
+  block_type: STATE_UPDATE
+  prev_block_hash: 8b18b63711db2c8dd6c35e94f5923118900d31f4e8a9b5c9990cc6c6aa8c3109
+  timestamp: '2026-10-04T14:33:53.895692+00:00'
+  merkle_root: 42ed9f70d3d363514aa2071897d72d71bb4be7d7de774659e76a7e5ffb20e9c2
+  current_block_hash: b6ef53ea64b73504810b4014c23a3623faae161daf6262cba02bcc57fde45b54
+  action: AUTONOMOUS_PIPELINE_autocicd_20261004_143353
+  block_hash: b6ef53ea64b73504810b4014c23a3623faae161daf6262cba02bcc57fde45b54
+- block_id: 6
+  block_type: STATE_UPDATE
+  prev_block_hash: b6ef53ea64b73504810b4014c23a3623faae161daf6262cba02bcc57fde45b54
+  timestamp: '2026-10-04T14:37:07.337290+00:00'
+  merkle_root: 42ed9f70d3d363514aa2071897d72d71bb4be7d7de774659e76a7e5ffb20e9c2
+  current_block_hash: a6174a7a8e0a098eac31b7619b64d7bc329c8fa6ef9aad29877add58d4b3c35a
+  action: AUTONOMOUS_HEAL_MODULE_global_system
+  block_hash: a6174a7a8e0a098eac31b7619b64d7bc329c8fa6ef9aad29877add58d4b3c35a
+- block_id: 7
+  block_type: STATE_UPDATE
+  prev_block_hash: a6174a7a8e0a098eac31b7619b64d7bc329c8fa6ef9aad29877add58d4b3c35a
+  timestamp: '2026-10-04T14:37:07.340586+00:00'
+  merkle_root: 42ed9f70d3d363514aa2071897d72d71bb4be7d7de774659e76a7e5ffb20e9c2
+  current_block_hash: ca808e073212082f50aaa9aa64f47c2caa94838e067dee4ac2cee9fb761c5819
+  action: AUTONOMOUS_PIPELINE_autocicd_20261004_143707
+  block_hash: ca808e073212082f50aaa9aa64f47c2caa94838e067dee4ac2cee9fb761c5819
 recovery_points:
-  - id: "RP_GENESIS_000"
-    module_scope: "global_system"
-    git_commit: "HEAD"
-    timestamp: "2026-10-04T09:47:34.881381Z"
-    status: "VERIFIED"
-    description: "Genesis bootstrap of Free Community Plan workspace"
+- id: RP_GENESIS_000
+  module_scope: global_system
+  git_commit: HEAD
+  timestamp: '2026-10-04T09:47:34.881381Z'
+  status: VERIFIED
+  description: Genesis bootstrap of Free Community Plan workspace
 quarantined_tests: []
 poisoning_incidents: []

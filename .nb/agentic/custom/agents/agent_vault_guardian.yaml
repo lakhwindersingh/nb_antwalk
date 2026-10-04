@@ -1,0 +1,148 @@
+agent_id: agent_vault_guardian
+agent_name: Vault Security Guardian
+version: 1.0.0
+pillar: credentials
+model_tier: tier_a
+description: Zero-knowledge vault manager, Argon2id key derivation, secret lease granting, and log redaction
+
+capabilities:
+  - secret_encryption
+  - secret_decryption
+  - lease_management
+  - key_derivation
+  - memory_scrubbing
+  - egress_redaction
+  - audit_logging
+
+tools:
+  - acquire_lease
+  - revoke_lease
+  - store_secret
+  - audit_access
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.0
+  max_tokens: 2048
+
+system_prompt: |
+  You are the Vault Security Guardian agent for Personal OS. Your role is to:
+
+  1. Manage the encrypted vault containing API keys, passwords, and credentials
+  2. Derive encryption keys using Argon2id (memory_cost: 64MB, time_cost: 3)
+  3. Issue ephemeral, scoped leases to authorized agents
+  4. Ensure all secrets are wrapped in ZeroizeOnDrop buffers
+  5. Scan all egress text for leaked credentials via RedactionSentinel
+  6. Maintain immutable audit trail of all vault access attempts
+
+  SECURITY INVARIANTS (NEVER VIOLATE):
+  - Plaintext secrets MUST NEVER appear in logs, stdout, or LLM context
+  - All secret buffers MUST be memory-scrubbed on drop
+  - Maximum lease duration is 1 hour (3600 seconds)
+  - First-time agent access REQUIRES HITL approval
+  - Export of permanent credentials (SSH keys, certificates) REQUIRES HITL approval
+  - Failed access attempts trigger rate limiting after 3 consecutive failures
+
+  CONSTRAINTS:
+  - Leases expire automatically and trigger memory scrubbing
+  - All vault operations append to Merkle audit ledger
+  - Egress redaction MUST run before any text leaves system boundary
+
+tool_schemas:
+  acquire_lease:
+    input:
+      secret_name: string
+      agent_id: string
+      duration_seconds:
+        type: integer
+        default: 300
+        max: 3600
+      scope: string
+    output:
+      lease_id: string
+      expires_at: datetime
+      secret_value:
+        type: string
+        description: Memory-scrubbed on drop
+
+  store_secret:
+    input:
+      name: string
+      secret_value: string
+      item_type:
+        type: string
+        enum: [api_key, password, token, ssh_key, certificate, encryption_key, other]
+    output:
+      vault_item_id: string
+      created: boolean
+
+capability_token:
+  permissions:
+    - vault:read
+    - vault:write
+    - vault:lease
+    - vault:revoke
+    - vault:audit
+    - system:keychain_access
+  restrictions:
+    max_leases_per_agent: 5
+    lease_rate_limit_per_minute: 10
+    requires_hitl_for_item_types: [ssh_key, certificate, encryption_key]
+
+workflow_integrations:
+  - wf_vault_credential_lease
+  - wf_vault_rotation_reminder
+  - wf_security_audit
+
+background_tasks:
+  - name: lease_expiry_reaper
+    schedule: "*/1 * * * *"  # Every minute
+    description: Revoke expired leases and scrub memory
+  - name: failed_access_monitor
+    schedule: continuous
+    description: Monitor for suspicious access patterns
+  - name: rotation_reminder
+    schedule: "0 9 * * 1"  # Weekly Monday at 9 AM
+    description: Remind about credentials due for rotation
+
+metrics:
+  success_criteria:
+    - secret_leak_incidents: 0
+    - lease_grant_success_rate > 0.99
+    - memory_scrub_verification_rate: 1.0
+  performance_targets:
+    key_derivation_time_ms: 500
+    lease_grant_time_ms: 50
+    encryption_throughput_mbps: 100
+
+error_handling:
+  retry_policy:
+    max_attempts: 1  # No retries for security operations
+  fallback_behavior:
+    on_keychain_unavailable: require_master_password_entry
+    on_encryption_failure: fail_and_alert
+    on_lease_limit_exceeded: deny_with_reason
+
+logging:
+  log_level: debug
+  sensitive_fields_to_redact:
+    - secret_value
+    - decrypted_payload
+    - master_key
+    - lease_token
+  audit_trail: true
+  audit_retention_days: 3650  # 10 years
+
+security:
+  master_key_derivation:
+    algorithm: Argon2id
+    memory_cost_kb: 65536  # 64 MB
+    time_cost: 3
+    parallelism: 4
+  encryption:
+    algorithm: ChaCha20-Poly1305
+    nonce_generation: OsRng
+  memory_safety:
+    zeroize_on_drop: required
+    prevent_swap: true

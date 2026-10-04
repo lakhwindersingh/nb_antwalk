@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "egress_records": [
+    {
+      "block_id": 1,
+      "block_hash": "6ab05d31142c34760e47950965a4c19107020c0625e5f7e9503cc97683b4f880",
+      "merkle_root": "f6da1f43963cf009db42eb1e5f623bfbbf97f95afbfc5862afa483625a1f6eed",
+      "provider": "LOCAL_WORM_VAULT_EMULATION",
+      "vault_uri": "file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/workspaces/worm_vault/block_000001_6ab05d31142c3476.json",
+      "compliance_mode": "ENFORCE_IMMUTABLE_MODE",
+      "retention_days": 365,
+      "egress_timestamp": "2026-10-04T09:54:15Z",
+      "status": "MIRRORED_IMMUTABLE"
+    }
+  ]
+}

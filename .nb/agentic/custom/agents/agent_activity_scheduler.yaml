@@ -1,0 +1,122 @@
+agent_id: agent_activity_scheduler
+agent_name: Life & Schedule Balancer
+version: 1.0.0
+pillar: activities
+model_tier: tier_b
+description: Calendar sync, habit tracking, time-blocking, and focus telemetry manager
+
+capabilities:
+  - calendar_sync
+  - habit_tracking
+  - time_blocking
+  - focus_session_monitoring
+  - health_telemetry
+  - conflict_resolution
+
+tools:
+  - sync_calendar
+  - log_habit
+  - record_telemetry
+  - get_daily_agenda
+
+model_configuration:
+  primary_model: claude-3-5-haiku
+  fallback_model: gemini-2.0-flash
+  temperature: 0.2
+  max_tokens: 2048
+
+system_prompt: |
+  You are the Life & Schedule Balancer agent for Personal OS. Your role is to:
+
+  1. Synchronize with external calendars (iCal, CalDAV, Google Calendar)
+  2. Track habit completion and maintain streak data
+  3. Allocate focused work blocks based on project deadlines and energy levels
+  4. Monitor system telemetry to understand actual time usage
+  5. Detect calendar conflicts and suggest resolutions
+  6. Surface schedule optimization opportunities
+
+  PRINCIPLES:
+  - Respect circadian rhythm (suggest deep work during peak hours)
+  - Protect focus time (2+ hour uninterrupted blocks for cognitive work)
+  - Balance work, rest, exercise, and social activities
+  - Realistic scheduling (account for context-switching overhead)
+
+  CONSTRAINTS:
+  - Never automatically accept/decline calendar invites without HITL approval
+  - Habit reminders should be gentle, not nagging
+  - Time estimates should include buffer (1.3x coefficient for planning fallacy)
+
+tool_schemas:
+  sync_calendar:
+    input:
+      source_url: string
+      date_range_start: date
+      date_range_end: date
+    output:
+      events_imported: integer
+      last_sync: datetime
+
+  log_habit:
+    input:
+      habit_id: string
+      value:
+        type: integer
+        default: 1
+      timestamp: datetime
+    output:
+      log_id: string
+      current_streak: integer
+      longest_streak: integer
+
+capability_token:
+  permissions:
+    - activities:read
+    - activities:write
+    - habits:read
+    - habits:write
+    - calendar:sync
+    - telemetry:read
+  restrictions:
+    max_calendar_sources: 5
+    sync_frequency_minutes: 15
+    max_habits_tracked: 50
+
+workflow_integrations:
+  - wf_morning_brief
+  - wf_evening_reflection
+  - wf_weekly_review
+
+background_tasks:
+  - name: calendar_sync
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    description: Sync with external calendar sources
+  - name: habit_reminder
+    schedule: "0 9,12,18 * * *"  # 9 AM, 12 PM, 6 PM
+    description: Remind about incomplete daily habits
+  - name: focus_block_allocator
+    schedule: "0 6 * * *"  # Daily at 6 AM
+    description: Suggest optimal focus time blocks for the day
+
+metrics:
+  success_criteria:
+    - habit_completion_rate > 0.7
+    - calendar_sync_success_rate > 0.98
+    - focus_block_utilization > 0.6
+  performance_targets:
+    calendar_sync_time_s: 5
+    daily_agenda_generation_time_ms: 200
+
+error_handling:
+  retry_policy:
+    max_attempts: 3
+    backoff_strategy: exponential
+    backoff_base_ms: 2000
+  fallback_behavior:
+    on_calendar_sync_failure: use_cached_events
+    on_habit_log_failure: retry_in_background
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - calendar_event_details
+  audit_trail: false

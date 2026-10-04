@@ -1,0 +1,154 @@
+agent_id: agent_workflow_runner
+agent_name: Workflow Engine & DAG Executor
+version: 1.0.0
+pillar: workflows
+model_tier: tier_b
+description: Declarative async workflow DAG execution, cron scheduling, and routine orchestration
+
+capabilities:
+  - dag_parsing
+  - async_execution
+  - cron_scheduling
+  - event_triggers
+  - checkpoint_recovery
+  - parallel_execution
+
+tools:
+  - dispatch_dag
+  - schedule_cron
+  - poll_routine
+  - list_runs
+
+model_configuration:
+  primary_model: claude-3-5-haiku
+  fallback_model: gemini-2.0-flash
+  temperature: 0.1
+  max_tokens: 4096
+
+system_prompt: |
+  You are the Workflow Engine agent for Personal OS. Your role is to:
+
+  1. Parse declarative workflow DAG definitions (YAML/JSON)
+  2. Execute workflows asynchronously using Tokio task pools
+  3. Schedule recurring workflows via cron expressions
+  4. Handle workflow failures with exponential backoff retry
+  5. Checkpoint long-running workflows for crash recovery
+  6. Coordinate multi-agent workflows with dependency resolution
+
+  WORKFLOW PATTERNS:
+  - Morning Brief: Agenda + priorities + weather + overdue tasks
+  - Evening Reflection: Daily journal synthesis + habit tallies + git commits
+  - Weekly Hygiene: Subscription audit + workspace cleanup + vault backup
+
+  CONSTRAINTS:
+  - Maximum workflow execution time: 30 minutes
+  - Maximum concurrent workflows: 50
+  - Checkpoint every 5 minutes for long-running workflows
+  - Retry failed steps up to 3 times with exponential backoff
+  - Alert user if workflow fails 3 consecutive times
+
+tool_schemas:
+  dispatch_dag:
+    input:
+      workflow_id: string
+      input_params: object
+    output:
+      run_id: string
+      status:
+        type: string
+        enum: [queued, running, success, failed]
+
+  schedule_cron:
+    input:
+      workflow_id: string
+      cron_expression: string
+      is_active:
+        type: boolean
+        default: true
+    output:
+      schedule_id: string
+      next_run_at: datetime
+
+capability_token:
+  permissions:
+    - workflows:read
+    - workflows:write
+    - workflows:execute
+    - cron:schedule
+    - all_agents:invoke  # Can orchestrate other agents
+  restrictions:
+    max_concurrent_workflows: 50
+    max_workflow_duration_minutes: 30
+    max_dag_depth: 10
+
+workflow_integrations:
+  - wf_morning_brief
+  - wf_evening_reflection
+  - wf_weekly_hygiene
+  - wf_file_ingestion
+  - wf_vault_credential_lease
+
+background_tasks:
+  - name: cron_scheduler
+    schedule: continuous
+    description: Evaluate cron schedules and dispatch workflows
+  - name: workflow_monitor
+    schedule: "*/5 * * * *"  # Every 5 minutes
+    description: Monitor running workflows and detect hangs
+  - name: checkpoint_persister
+    schedule: continuous
+    description: Persist workflow state checkpoints
+
+metrics:
+  success_criteria:
+    - workflow_success_rate > 0.95
+    - cron_schedule_accuracy_seconds < 10
+    - checkpoint_recovery_success_rate > 0.99
+  performance_targets:
+    dag_parse_time_ms: 100
+    workflow_dispatch_latency_ms: 50
+    checkpoint_persistence_time_ms: 200
+
+error_handling:
+  retry_policy:
+    max_attempts: 3
+    backoff_strategy: exponential
+    backoff_base_ms: 2000
+  fallback_behavior:
+    on_step_timeout: skip_and_continue_if_optional
+    on_agent_unavailable: queue_for_retry
+    on_max_retries_exceeded: fail_and_alert
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - workflow_input_params_containing_secrets
+  audit_trail: true
+
+built_in_workflows:
+  morning_brief:
+    schedule: "0 7 * * 1-5"  # Weekdays at 7 AM
+    steps:
+      - get_daily_agenda
+      - list_top_tasks
+      - check_overdue_items
+      - fetch_weather
+      - synthesize_brief
+
+  evening_reflection:
+    schedule: "0 21 * * *"  # Daily at 9 PM
+    steps:
+      - retrieve_completed_tasks
+      - tally_habit_logs
+      - count_git_commits
+      - prompt_journal_entry
+      - synthesize_reflection
+
+  weekly_hygiene:
+    schedule: "0 20 * * 0"  # Sunday at 8 PM
+    steps:
+      - audit_subscriptions
+      - cleanup_stale_worktrees
+      - optimize_search_indexes
+      - backup_vault
+      - purge_old_logs

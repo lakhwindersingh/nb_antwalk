@@ -1,0 +1,148 @@
+agent_id: agent_file_indexer
+agent_name: File Indexer & CAS Manager
+version: 1.0.0
+pillar: files
+model_tier: tier_b
+description: BLAKE3 content-addressable storage, document parsing, OCR, and hybrid indexing daemon
+
+capabilities:
+  - file_watching
+  - content_addressable_storage
+  - text_extraction
+  - ocr_processing
+  - tantivy_indexing
+  - vector_embedding_generation
+  - deduplication
+
+tools:
+  - ingest_file
+  - search_hybrid
+  - deduplicate
+  - get_blob
+
+model_configuration:
+  primary_model: claude-3-5-haiku
+  fallback_model: gemini-2.0-flash
+  temperature: 0.1
+  max_tokens: 2048
+
+system_prompt: |
+  You are the File Indexer agent for Personal OS. Your role is to:
+
+  1. Monitor configured directories for new files via filesystem watcher
+  2. Compute BLAKE3 content hashes for deduplication
+  3. Extract text from PDF, DOCX, images (OCR), and other formats
+  4. Generate semantic embeddings for hybrid search
+  5. Index content in Tantivy for BM25 full-text search
+  6. Maintain content-addressable blob store
+
+  CONSTRAINTS:
+  - Maximum file size for ingestion: 100 MB
+  - OCR only for images with text content (skip photos, diagrams)
+  - Skip system files, hidden files (unless explicitly configured)
+  - Respect .gitignore patterns in monitored directories
+  - Never index files containing secrets (check against vault secret hashes)
+
+tool_schemas:
+  ingest_file:
+    input:
+      file_path: string
+      extract_text:
+        type: boolean
+        default: true
+      generate_embedding:
+        type: boolean
+        default: true
+    output:
+      file_id: string
+      blake3_hash: string
+      mime_type: string
+      size_bytes: integer
+
+  search_hybrid:
+    input:
+      query: string
+      limit:
+        type: integer
+        default: 10
+        max: 100
+      mime_type_filter:
+        type: array
+        items: string
+      semantic_weight:
+        type: number
+        min: 0.0
+        max: 1.0
+        default: 0.5
+    output:
+      type: array
+      items:
+        properties:
+          file_id: string
+          file_path: string
+          score: number
+          snippet: string
+
+capability_token:
+  permissions:
+    - files:read
+    - files:write
+    - files:index
+    - search:read
+    - search:write
+    - vault:lease:openai_api_key:embedding_only
+  restrictions:
+    max_file_size_bytes: 104857600  # 100 MB
+    allowed_directories:
+      - /Users/lakhwinder/Documents
+      - /Users/lakhwinder/Downloads
+      - /Users/lakhwinder/Desktop
+    forbidden_patterns:
+      - "**/.env"
+      - "**/*secret*"
+      - "**/*credential*"
+      - "**/id_rsa"
+      - "**/id_ed25519"
+    max_ingestion_rate_per_hour: 1000
+
+workflow_integrations:
+  - wf_file_ingestion
+  - wf_batch_indexing
+  - wf_duplicate_cleanup
+
+background_tasks:
+  - name: directory_watcher
+    schedule: continuous
+    description: Monitor configured directories for file changes
+  - name: index_optimization
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    description: Optimize Tantivy segments and rebuild HNSW index
+  - name: orphan_cleanup
+    schedule: "0 4 * * 0"  # Weekly Sunday at 4 AM
+    description: Remove orphaned blobs not referenced by any file record
+
+metrics:
+  success_criteria:
+    - ingestion_success_rate > 0.98
+    - deduplication_detection_rate > 0.95
+    - search_latency_p99_ms < 15
+  performance_targets:
+    file_hash_throughput_mbps: 500
+    text_extraction_time_per_page_ms: 200
+    embedding_generation_time_per_file_s: 2
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: linear
+    backoff_base_ms: 500
+  fallback_behavior:
+    on_ocr_failure: skip_and_log
+    on_embedding_failure: index_text_only
+    on_storage_full: alert_and_pause_ingestion
+
+logging:
+  log_level: debug
+  sensitive_fields_to_redact:
+    - file_content_snippets_over_1kb
+  audit_trail: true

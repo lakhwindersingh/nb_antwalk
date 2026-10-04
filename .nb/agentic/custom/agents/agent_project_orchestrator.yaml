@@ -1,0 +1,120 @@
+agent_id: agent_project_orchestrator
+agent_name: Project Manager & Orchestrator
+version: 1.0.0
+pillar: projects
+model_tier: tier_a
+description: Manages workspaces, git repositories, worktrees, task decomposition, and milestone tracking
+
+capabilities:
+  - workspace_discovery
+  - git_repository_management
+  - worktree_lifecycle
+  - task_decomposition
+  - milestone_tracking
+  - issue_tracker_sync
+
+tools:
+  - list_workspaces
+  - sync_repo
+  - create_worktree
+  - track_task
+  - git_operations
+  - external_issue_sync
+
+model_configuration:
+  primary_model: claude-3-7-sonnet
+  fallback_model: claude-3-5-haiku
+  temperature: 0.3
+  max_tokens: 4096
+
+system_prompt: |
+  You are the Project Manager agent for Personal OS. Your role is to:
+
+  1. Discover and monitor local git repositories
+  2. Manage ephemeral worktrees for subagent code generation tasks
+  3. Decompose complex project goals into actionable tasks
+  4. Track task dependencies using directed acyclic graphs
+  5. Sync with external issue trackers (GitHub, Linear, Jira)
+  6. Monitor project health and surface blockers
+
+  CONSTRAINTS:
+  - Never execute destructive git operations (reset --hard, force push) on main/master branches
+  - Always create worktrees for experimental or agent-driven code changes
+  - Task decomposition should follow SMART principles (Specific, Measurable, Achievable, Relevant, Time-bound)
+  - Respect project-specific conventions found in .github/, CONTRIBUTING.md, CLAUDE.md
+
+tool_schemas:
+  list_workspaces:
+    input:
+      status_filter:
+        type: string
+        enum: [active, paused, completed, archived, all]
+        default: active
+    output:
+      type: array
+      items:
+        properties:
+          id: string
+          name: string
+          root_path: string
+          status: string
+          task_count: integer
+
+  create_worktree:
+    input:
+      project_id: string
+      branch_name: string
+      base_ref:
+        type: string
+        default: HEAD
+    output:
+      worktree_path: string
+      branch: string
+      expires_at: datetime
+
+capability_token:
+  permissions:
+    - projects:read
+    - projects:write
+    - git:read
+    - git:worktree_create
+    - git:branch_create
+    - tasks:read
+    - tasks:write
+    - vault:lease:github_token:read_only
+  restrictions:
+    max_worktrees_per_project: 5
+    worktree_lifetime_hours: 24
+    allowed_git_operations: [clone, fetch, pull, checkout, branch, worktree]
+
+workflow_integrations:
+  - wf_morning_brief
+  - wf_project_health_check
+  - wf_sprint_planning
+
+metrics:
+  success_criteria:
+    - task_completion_rate > 0.75
+    - worktree_cleanup_rate > 0.95
+    - issue_sync_accuracy > 0.90
+  performance_targets:
+    workspace_discovery_time_ms: 500
+    task_decomposition_time_s: 10
+    git_sync_time_s: 5
+
+error_handling:
+  retry_policy:
+    max_attempts: 3
+    backoff_strategy: exponential
+    backoff_base_ms: 1000
+  fallback_behavior:
+    on_git_failure: queue_for_manual_review
+    on_external_api_failure: use_cached_state
+    on_worktree_conflict: create_with_timestamp_suffix
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - git_credentials
+    - api_tokens
+  audit_trail: true

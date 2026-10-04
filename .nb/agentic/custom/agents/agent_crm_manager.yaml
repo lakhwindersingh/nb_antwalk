@@ -1,0 +1,145 @@
+agent_id: agent_crm_manager
+agent_name: Interaction & CRM Manager
+version: 1.0.0
+pillar: interactions
+model_tier: tier_b
+description: Personal CRM, communication history, meeting debriefs, and relationship follow-up manager
+
+capabilities:
+  - contact_management
+  - interaction_logging
+  - meeting_debrief_extraction
+  - follow_up_cadence_tracking
+  - communication_history
+  - action_item_extraction
+
+tools:
+  - log_interaction
+  - search_contacts
+  - record_meeting_debrief
+
+model_configuration:
+  primary_model: claude-3-5-haiku
+  fallback_model: gemini-2.0-flash
+  temperature: 0.4
+  max_tokens: 4096
+
+system_prompt: |
+  You are the Interaction & CRM Manager agent for Personal OS. Your role is to:
+
+  1. Maintain a personal CRM of contacts and relationships
+  2. Log communication touchpoints (email, calls, meetings, messages)
+  3. Extract structured data from meeting notes (attendees, decisions, action items)
+  4. Track relationship follow-up cadence and alert when overdue
+  5. Surface context before upcoming meetings
+  6. Link interactions to projects and tasks
+
+  PRINCIPLES:
+  - Relationships require regular maintenance (suggest follow-ups)
+  - Meeting notes should capture decisions and action items, not verbatim transcripts
+  - Context is king: surface relevant history before interactions
+  - Respect privacy: never log sensitive personal disclosures without explicit consent
+
+  CONSTRAINTS:
+  - Never automatically send messages or emails without HITL approval
+  - Follow-up reminders should be gentle suggestions, not obligations
+  - Action items extracted from meetings should be verified before creating tasks
+
+tool_schemas:
+  log_interaction:
+    input:
+      contact_id: string
+      interaction_type:
+        type: string
+        enum: [email, call, meeting, message]
+      summary: string
+      key_decisions:
+        type: array
+        items: string
+      action_items:
+        type: array
+        items: string
+      occurred_at: datetime
+    output:
+      interaction_id: string
+
+  search_contacts:
+    input:
+      query: string
+      limit:
+        type: integer
+        default: 10
+        max: 50
+    output:
+      type: array
+      items:
+        properties:
+          contact_id: string
+          name: string
+          email: string
+          organization: string
+          last_contacted_at: datetime
+
+capability_token:
+  permissions:
+    - interactions:read
+    - interactions:write
+    - contacts:read
+    - contacts:write
+    - search:query
+    - projects:link_interaction
+  restrictions:
+    max_contacts: 5000
+    max_interactions_per_contact: 10000
+    max_meeting_debrief_length_chars: 10000
+
+workflow_integrations:
+  - wf_morning_brief
+  - wf_weekly_relationship_review
+
+background_tasks:
+  - name: follow_up_sentinel
+    schedule: "0 9 * * 1,3,5"  # Mon, Wed, Fri at 9 AM
+    description: Alert about relationships exceeding follow-up threshold
+  - name: meeting_context_preparer
+    schedule: "0 */2 * * *"  # Every 2 hours
+    description: Prepare context for upcoming meetings in next 24 hours
+  - name: orphan_action_item_reminder
+    schedule: "0 18 * * *"  # Daily at 6 PM
+    description: Remind about action items not yet converted to tasks
+
+metrics:
+  success_criteria:
+    - follow_up_reminder_action_rate > 0.3
+    - action_item_extraction_accuracy > 0.85
+    - meeting_context_relevance_score > 0.75
+  performance_targets:
+    contact_search_time_ms: 100
+    meeting_debrief_extraction_time_s: 5
+    interaction_log_time_ms: 50
+
+error_handling:
+  retry_policy:
+    max_attempts: 2
+    backoff_strategy: linear
+    backoff_base_ms: 1000
+  fallback_behavior:
+    on_extraction_failure: store_raw_notes_for_manual_review
+    on_contact_not_found: suggest_creating_new_contact
+
+logging:
+  log_level: info
+  sensitive_fields_to_redact:
+    - meeting_notes_content
+    - personal_contact_info
+  audit_trail: false
+
+follow_up_policies:
+  default_cadences:
+    close_collaborator: 14  # days
+    professional_contact: 45
+    family_friend: 30
+    casual_acquaintance: 90
+  alert_thresholds:
+    warning: 0.8  # Alert at 80% of cadence
+    overdue: 1.2  # Alert if 20% overdue

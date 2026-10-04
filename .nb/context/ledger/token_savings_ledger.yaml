@@ -1,0 +1,13 @@
+version: 1.0.0
+last_updated: '2026-10-04T09:54:15.088506+00:00'
+performance_rev_share_pct: 15.0
+summary:
+  total_events: 0
+  total_uncompressed_tokens: 0
+  total_pruned_tokens: 0
+  total_tokens_saved: 0
+  average_reduction_pct: 0.0
+  total_gross_savings_usd: 0.0
+  total_rev_share_fee_usd: 0.0
+  total_net_savings_usd: 0.0
+events: []

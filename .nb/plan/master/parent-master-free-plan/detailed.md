@@ -187,7 +187,7 @@ The Free Plan provides an out-of-the-box, lightweight autonomous CI/CD setup dri
 ### 5.1 The 5-Step Continuous Workflow & Lifecycle Hooks
 The pipeline topologically links platform engines and specialized agents through deterministic handoff hooks:
 1. **Step 1: Self-Sustaining Hygiene (`platform.self_sustaining_engine`)**:
-   - Reclaims expired ephemeral worktree locks (`.workspaces/subagent_*`).
+   - Reclaims expired ephemeral worktree locks (`.nb/workspaces/subagent_*`).
    - Cleans temporary scratch diffs and test artifacts (`user/scratch/`).
    - Verifies Merkle chain continuity ($100\%$ linear validity check).
    - *Handoff Hook*: `hook_hygiene_to_pruner` -> transfers `hygiene_clean_receipt`.
@@ -216,7 +216,7 @@ The pipeline topologically links platform engines and specialized agents through
 To ensure subagents spawn reliably across complex workflows:
 - **Multi-Tier Agent Registry**: The engine automatically discovers and indexes agent specifications across `.nb/agentic/custom/agents/`, `.nb/plan/agents/`, `.nb/plan/packages/*/agents/`, and `user/hitl/orphaned_context_files/agents/`.
 - **Pre-Flight Contract Validation**: Prior to process spawning, input artifacts, schemas, and runtime dependencies are verified.
-- **Isolated Ephemeral Sandboxes**: Subagents execute in dedicated workspace directories (`.workspaces/subagent_<executor>/`), preventing concurrent file lock conflicts.
+- **Isolated Ephemeral Sandboxes**: Subagents execute in dedicated workspace directories (`.nb/workspaces/subagent_<executor>/`), preventing concurrent file lock conflicts.
 - **Supervised Bounded Retries**: Transient failures (e.g. process aborts or timeout errors) are automatically retried up to $N_{\max} = 3$ times with exponential backoff before escalating.
 
 ### 5.4 Intelligent Skippability Assessment & Verbose Output

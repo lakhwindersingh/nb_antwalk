@@ -1,0 +1,53 @@
+plan_id: domain_personal_os
+plan_name: Personal OS (Rust-based Agentic Life Operating System)
+version: 1.0.0
+capability_rating: Domain Specialist (P-OS-01 to P-OS-12)
+plan_type: layerable_domain_plan
+status: specification
+parent_plan: .nb/plan/master/parent-master-plan/concise.md
+dependencies:
+  - master_parent_framework (>= 7.5.0)
+file_versions:
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Quick navigation, architecture summary, and onboarding
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Concise layerable domain specification and wire contract definition
+  detailed:
+    path: detailed.md
+    version: 1.0.0
+    last_modified: '2024-10-04'
+    primary_purpose: Deep architectural blueprint, Rust crate design, SQLite schema, and security invariants
+key_capabilities:
+  - P-OS-01: Multi-Workspace Project & Git Worktree Lifecycle Engine
+  - P-OS-02: Content-Addressable Semantic File Indexer & Watcher Daemon
+  - P-OS-03: Zettelkasten Knowledge Graph & Associative Thought Capture
+  - P-OS-04: Bi-Directional Activity & Calendar Schedule Orchestrator
+  - P-OS-05: Declarative Async Workflow DAG & Background Routine Engine
+  - P-OS-06: Zero-Knowledge Encrypted Vault & Agent Secret Brokerage
+  - P-OS-07: Relationship & Communication Interaction CRM Engine
+  - P-OS-08: Double-Entry Financial Ingestion & Subscription Auditor
+  - P-OS-09: Local High-Throughput SQLite-WAL + Tantivy Hybrid Storage
+  - P-OS-10: Model Context Protocol (MCP) Server & Client Federation
+  - P-OS-11: Zero-Leak Redaction & In-Memory Enclave Secret Leasing
+  - P-OS-12: Autonomous Morning Brief & Evening Reflection Synthesizer
+implementation_phases:
+  phase_1: Core Rust Workspace & Unified Storage Engine (SQLite, Tantivy, BLAKE3)
+  phase_2: Security Enclave Vault & Credential Brokerage (OS Keychain, Argon2id, ChaCha20-Poly1305)
+  phase_3: 8 Domain Subsystems (Projects, Files, Thoughts, Activities, Workflows, Vault, Interactions, Purchases)
+  phase_4: Async Multi-Agent Actor Runtime & MCP Gateway (Tokio, Axum, WebSocket)
+  phase_5: Interactive CLI, Observability Dashboard & Daily Life Orchestration Daemons
+success_metrics:
+  memory_safety: 100% safe Rust (zero undefined behavior)
+  search_latency_p99: "< 15ms hybrid vector/FTS search across 100k items"
+  vault_leak_probability: 0.0% (strict Zeroize memory scrubbing + redacted logs)
+  offline_first_resilience: 100% functional without external cloud connectivity
+related_contracts:
+  - .nb/context/contracts/personal_os_wire_contracts.yaml
+related_rules:
+  - .nb/context/rules/personal_os_invariants.md

@@ -1,0 +1,150 @@
+workflow_id: wf_morning_brief
+workflow_name: Morning Brief Routine
+version: 1.0.0
+description: Daily agenda synthesis with priorities, meetings, overdue tasks, and weather
+
+schedule:
+  cron: "0 7 * * 1-5"  # Weekdays at 7:00 AM
+  timezone: local
+  enabled: true
+
+trigger_conditions:
+  - type: scheduled
+  - type: manual_invoke
+
+input_parameters:
+  date:
+    type: string
+    format: date
+    default: today
+    description: Date to generate brief for
+
+steps:
+  - step_id: fetch_daily_agenda
+    name: Fetch Daily Calendar Agenda
+    agent: agent_activity_scheduler
+    tool: get_daily_agenda
+    input:
+      date: "{{ input.date }}"
+    output_variable: daily_agenda
+    timeout_seconds: 10
+    retry:
+      max_attempts: 2
+      backoff_ms: 1000
+
+  - step_id: get_top_priority_tasks
+    name: Get Top Priority Project Tasks
+    agent: agent_project_orchestrator
+    tool: list_workspaces
+    input:
+      status_filter: active
+    output_variable: active_projects
+    timeout_seconds: 5
+    depends_on: []
+
+  - step_id: check_overdue_items
+    name: Check Overdue Tasks and Habits
+    agent: agent_activity_scheduler
+    tool: get_daily_agenda
+    input:
+      date: yesterday
+    output_variable: overdue_check
+    timeout_seconds: 5
+    depends_on: []
+
+  - step_id: search_flagged_thoughts
+    name: Search for Flagged Thoughts or Reminders
+    agent: agent_thought_synthesizer
+    tool: find_associative
+    input:
+      query: "flagged OR urgent OR today"
+      limit: 5
+    output_variable: flagged_thoughts
+    timeout_seconds: 5
+    depends_on: []
+
+  - step_id: check_upcoming_subscription_renewals
+    name: Check Upcoming Subscription Renewals
+    agent: agent_finance_tracker
+    tool: audit_subscriptions
+    input:
+      upcoming_days: 7
+    output_variable: upcoming_renewals
+    timeout_seconds: 5
+    depends_on: []
+
+  - step_id: synthesize_brief
+    name: Synthesize Morning Brief
+    agent: agent_thought_synthesizer
+    action: synthesize
+    input:
+      template: |
+        # Morning Brief - {{ input.date }}
+
+        ## 📅 Today's Schedule
+        {{ daily_agenda.activities }}
+
+        ## 🎯 Top Priorities
+        {{ active_projects | extract_top_tasks(3) }}
+
+        ## ⚠️ Overdue Items
+        {{ overdue_check | filter_incomplete }}
+
+        ## 💡 Flagged Thoughts
+        {{ flagged_thoughts }}
+
+        ## 💳 Upcoming Renewals (Next 7 Days)
+        {{ upcoming_renewals }}
+
+        ## 🌤️ Weather
+        {{ weather.summary }} | High: {{ weather.high }}°F | Low: {{ weather.low }}°F
+
+        ---
+        *Have a productive day!*
+      context:
+        daily_agenda: "{{ daily_agenda }}"
+        active_projects: "{{ active_projects }}"
+        overdue_check: "{{ overdue_check }}"
+        flagged_thoughts: "{{ flagged_thoughts }}"
+        upcoming_renewals: "{{ upcoming_renewals }}"
+    output_variable: morning_brief_text
+    timeout_seconds: 15
+    depends_on:
+      - fetch_daily_agenda
+      - get_top_priority_tasks
+      - check_overdue_items
+      - search_flagged_thoughts
+      - check_upcoming_subscription_renewals
+
+  - step_id: display_brief
+    name: Display Brief to User
+    action: notify
+    input:
+      channel: cli
+      message: "{{ morning_brief_text }}"
+      priority: normal
+    depends_on:
+      - synthesize_brief
+
+output:
+  brief_text: "{{ morning_brief_text }}"
+  agenda_count: "{{ daily_agenda.activities | count }}"
+  overdue_count: "{{ overdue_check | filter_incomplete | count }}"
+
+error_handling:
+  on_step_failure: continue_with_partial_results
+  on_timeout: use_cached_data_if_available
+  final_notification: always
+
+notifications:
+  on_success:
+    - channel: cli
+      template: "✅ Morning Brief ready"
+  on_failure:
+    - channel: cli
+      template: "⚠️ Morning Brief generation failed: {{ error.message }}"
+
+metrics:
+  track_execution_time: true
+  track_success_rate: true
+  alert_on_consecutive_failures: 3

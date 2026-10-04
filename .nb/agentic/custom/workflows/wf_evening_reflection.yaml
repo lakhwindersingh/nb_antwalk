@@ -1,0 +1,190 @@
+workflow_id: wf_evening_reflection
+workflow_name: Evening Reflection Routine
+version: 1.0.0
+description: Daily journal synthesis from completed tasks, thoughts, interactions, and habit logs
+
+schedule:
+  cron: "0 21 * * *"  # Daily at 9:00 PM
+  timezone: local
+  enabled: true
+
+trigger_conditions:
+  - type: scheduled
+  - type: manual_invoke
+
+input_parameters:
+  date:
+    type: string
+    format: date
+    default: today
+    description: Date to reflect on
+
+steps:
+  - step_id: retrieve_completed_tasks
+    name: Retrieve Today's Completed Tasks
+    agent: agent_project_orchestrator
+    action: query_tasks
+    input:
+      date: "{{ input.date }}"
+      status: done
+    output_variable: completed_tasks
+    timeout_seconds: 10
+
+  - step_id: retrieve_captured_thoughts
+    name: Retrieve Today's Captured Thoughts
+    agent: agent_thought_synthesizer
+    action: query_thoughts
+    input:
+      date: "{{ input.date }}"
+      thought_type: [fleeting, atomic]
+    output_variable: daily_thoughts
+    timeout_seconds: 10
+
+  - step_id: tally_habit_completions
+    name: Tally Habit Completions
+    agent: agent_activity_scheduler
+    action: get_habit_status
+    input:
+      date: "{{ input.date }}"
+    output_variable: habit_status
+    timeout_seconds: 5
+
+  - step_id: retrieve_interactions
+    name: Retrieve Today's Interactions
+    agent: agent_crm_manager
+    action: query_interactions
+    input:
+      date: "{{ input.date }}"
+    output_variable: interactions
+    timeout_seconds: 10
+
+  - step_id: count_git_activity
+    name: Count Git Commits Today
+    agent: agent_project_orchestrator
+    action: git_log_count
+    input:
+      since: "{{ input.date }} 00:00:00"
+      until: "{{ input.date }} 23:59:59"
+    output_variable: git_activity
+    timeout_seconds: 5
+
+  - step_id: check_expenses
+    name: Check Today's Expenses
+    agent: agent_finance_tracker
+    action: query_expenses
+    input:
+      date: "{{ input.date }}"
+    output_variable: daily_expenses
+    timeout_seconds: 5
+
+  - step_id: synthesize_reflection
+    name: Synthesize Evening Reflection
+    agent: agent_thought_synthesizer
+    action: synthesize
+    input:
+      template: |
+        # Evening Reflection - {{ input.date }}
+
+        ## ✅ Completed Today
+        {{ completed_tasks | summarize }}
+
+        ## 💭 Thoughts Captured
+        {{ daily_thoughts | count }} thoughts captured
+        Key themes: {{ daily_thoughts | extract_themes }}
+
+        ## 🎯 Habits
+        {{ habit_status | format_streaks }}
+
+        ## 🤝 Interactions
+        {{ interactions | summarize }}
+
+        ## 💻 Code Activity
+        {{ git_activity.commit_count }} commits across {{ git_activity.repo_count }} repositories
+
+        ## 💳 Expenses
+        Total spent: ${{ daily_expenses.total_cents / 100 }}
+        Largest: {{ daily_expenses.largest_transaction }}
+
+        ## 📝 Reflection Prompt
+        What went well today? What could be improved tomorrow?
+
+        [Write your reflection here]
+
+      context:
+        completed_tasks: "{{ completed_tasks }}"
+        daily_thoughts: "{{ daily_thoughts }}"
+        habit_status: "{{ habit_status }}"
+        interactions: "{{ interactions }}"
+        git_activity: "{{ git_activity }}"
+        daily_expenses: "{{ daily_expenses }}"
+    output_variable: reflection_draft
+    timeout_seconds: 20
+    depends_on:
+      - retrieve_completed_tasks
+      - retrieve_captured_thoughts
+      - tally_habit_completions
+      - retrieve_interactions
+      - count_git_activity
+      - check_expenses
+
+  - step_id: save_journal_entry
+    name: Save Daily Journal Entry
+    agent: agent_thought_synthesizer
+    tool: daily_journal
+    input:
+      date: "{{ input.date }}"
+      content: "{{ reflection_draft }}"
+    output_variable: journal_entry_id
+    timeout_seconds: 10
+    depends_on:
+      - synthesize_reflection
+
+  - step_id: update_habit_streaks
+    name: Update Habit Streaks
+    agent: agent_activity_scheduler
+    action: finalize_daily_habits
+    input:
+      date: "{{ input.date }}"
+    output_variable: streak_updates
+    timeout_seconds: 5
+    depends_on:
+      - tally_habit_completions
+
+  - step_id: prompt_user_reflection
+    name: Prompt User for Personal Reflection
+    action: notify
+    input:
+      channel: cli
+      message: |
+        {{ reflection_draft }}
+
+        💭 Take a moment to add your personal reflections to today's journal.
+
+        Run: pos thought journal --edit
+      priority: high
+    depends_on:
+      - save_journal_entry
+
+output:
+  journal_entry_id: "{{ journal_entry_id }}"
+  tasks_completed: "{{ completed_tasks | count }}"
+  habits_completed: "{{ habit_status | completed_count }}"
+  thoughts_captured: "{{ daily_thoughts | count }}"
+
+error_handling:
+  on_step_failure: continue_with_partial_results
+  on_timeout: save_partial_reflection
+  final_notification: always
+
+notifications:
+  on_success:
+    - channel: cli
+      template: "✅ Evening Reflection ready for your input"
+  on_failure:
+    - channel: cli
+      template: "⚠️ Evening Reflection synthesis failed: {{ error.message }}"
+
+metrics:
+  track_execution_time: true
+  track_journal_completion_rate: true
+  alert_on_consecutive_failures: 3

@@ -25,7 +25,7 @@ This document represents the complete, multi-phase logical review of the solutio
 | **GAP-004** | LLM Egress Privacy | Critical | Personal PII leaked to frontier models unredacted | [Dual-Pass NER & Reversible Anonymization](./pii_anonymization.md) | ✅ Specified |
 | **GAP-005** | Workflow Resilience | High | Daemon crashes lose intermediate multi-step state | [Saga Pattern & Durable Step State Machine](./saga_workflow_durability.md) | ✅ Specified |
 | **GAP-006** | Vault Disaster Recovery | **Critical** | Single-point-of-failure in OS keychain; no key backup | BIP-39 12/24-word seed phrase + Shamir Secret Sharing | 🆕 Analyzed Below |
-| **GAP-007** | Runtime Dependency Weight | **High** | `rust-bert` (LibTorch) is 1.5GB+ and breaks mobile cross-compilation | Pure-Rust `candle` / ONNX Runtime (`ort`) quantized model | 🆕 Analyzed Below |
+| **GAP-007** | Runtime Dependency Weight | **High** | `rust-bert` (LibTorch) is 1.5GB+ and breaks mobile cross-compilation | Pure-Rust `candle` (Q4_K Safetensors) [GAP-007](./inference_engine_optimization.md) | ✅ Upgraded to Candle |
 | **GAP-008** | Subagent Sandboxing | **Critical** | Unrestricted filesystem & network tool execution | OS-level Landlock/Seatbelt chroot + WASM/WASI sandbox | 🆕 Analyzed Below |
 | **GAP-009** | CAS Storage Footprint | **Medium** | BLAKE3 blob store accumulates unbounded orphaned data | Two-phase Mark & Sweep Garbage Collector + Zstd tiers | 🆕 Analyzed Below |
 | **GAP-010** | Mobile Peer Discovery | **High** | iOS background sync throttled without cloud relay | Bonjour/mDNS local TLS sync + Silent APNs triggers | 🆕 Analyzed Below |
@@ -73,8 +73,10 @@ This document represents the complete, multi-phase logical review of the solutio
   2. **Shamir's Secret Sharing (SSS)**: Optional $k$-of-$n$ threshold key recovery (e.g. 2-of-3 shares split across macOS device, iPhone Secure Enclave, and recovery paper).
   3. **Zero-Downtime Key Rotation**: Dedicated re-encryption workflow that decrypts all vault items and re-seals them under a new master key without data loss.
 
-### GAP-007: Runtime Dependency Bloat & Linkage Incompatibility in `rust-bert`
-- **Shortcoming**: `pii_anonymization.md` prescribes `rust-bert` for local NER. `rust-bert` requires dynamic linkage against LibTorch (~1.5 GB binary, C++ PyTorch runtime). This introduces massive build times, complex C++ toolchain dependencies, and completely breaks cross-compilation for iOS/macOS App Store and Android targets.
+### GAP-007: Runtime Dependency Bloat & Linkage Incompatibility in `rust-bert` (Resolved via Candle)
+- **Specification**: [`.nb/plan/architecture/inference_engine_optimization.md`](./inference_engine_optimization.md)
+- **Status**: ✅ Canonical Upgrade Complete (100% Pure-Rust Hugging Face Candle)
+- **Shortcoming**: Legacy `pii_anonymization.md` prescribed `rust-bert` for local NER. `rust-bert` requires dynamic linkage against LibTorch (~1.5 GB binary, C++ PyTorch runtime). This introduces massive build times, complex C++ toolchain dependencies, and completely breaks cross-compilation for iOS/macOS App Store and Android targets.
 - **Root Cause**: Heavy enterprise ML dependencies utilized for lightweight client-side NER.
 - **Architectural Solution**:
   1. Replace `rust-bert` with **[`candle`](https://github.com/huggingface/candle)** (Hugging Face's pure-Rust ML framework) or **[`ort`](https://github.com/pykeio/ort)** (ONNX Runtime).

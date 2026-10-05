@@ -67,7 +67,7 @@ Implement **layered privacy protection** with NER-based entity detection, revers
                             ▼
 ┌──────────────────────────────────────────────────────────────┐
 │          Stage 2: NER Entity Extraction (Local BERT)          │
-│  - rust-bert NER pipeline (offline, no API calls)            │
+│  - Candle pure-Rust NER pipeline (zero LibTorch) [GAP-007]   │
 │  - Detected entities:                                         │
 │    • PER: "Sarah Johnson" → [PERSON_1]                        │
 │    • EMAIL: "sarah@acme.com" → [EMAIL_1]                      │
@@ -107,7 +107,7 @@ Implement **layered privacy protection** with NER-based entity detection, revers
 
 ## Implementation Specification
 
-### 1. NER Model Setup (rust-bert)
+### 1. NER Model Setup (Candle Pure Rust - GAP-007)
 
 ```rust
 // workplace/modules/pos_privacy/src/ner_engine.rs
@@ -625,7 +625,7 @@ CREATE TABLE IF NOT EXISTS privacy_preferences (
 - Override only with explicit user consent
 
 ## Rule 2: Local NER Processing
-- NER model runs locally via rust-bert (no API calls)
+- NER model runs locally via Candle pure-Rust runtime (no API calls, zero C++ LibTorch)
 - No PII sent to external services for entity detection
 - Model weights bundled with application
 
@@ -666,7 +666,11 @@ CREATE TABLE IF NOT EXISTS privacy_preferences (
 
 ```toml
 [dependencies]
-rust-bert = "0.21"          # Local NER model
+# Pure-Rust ML stack (replaces legacy rust-bert per GAP-007)
+candle-core = { version = "0.8", default-features = false }
+candle-nn = "0.8"
+candle-transformers = "0.8"
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 regex = "1.10"
 once_cell = "1.19"
 serde = { version = "1.0", features = ["derive"] }
@@ -707,4 +711,4 @@ ulid = "1.0"
 ---
 
 **Status**: ✅ Specification Complete - Ready for Implementation  
-**Next Action**: Integrate `rust-bert` and implement `NEREngine`
+**Next Action**: Implement `NEREngineCandle` using quantized Safetensors per [GAP-007](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/.nb/plan/architecture/inference_engine_optimization.md)

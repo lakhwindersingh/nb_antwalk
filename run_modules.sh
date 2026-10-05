@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Personal OS & Percipience Cargo Workspace Module Runner
-# Supports building, testing, linting, and running all 7 Cargo modules:
+# Supports building, testing, linting, installing, and running all 7 Cargo modules:
 # - pos_core
 # - pos_orchestrator
 # - pos_thoughts
@@ -66,16 +66,26 @@ function print_usage() {
     echo -e "  ${GREEN}test-module <name>${NC}  Run tests for a specific module (e.g. pos_core)"
     echo -e "  ${GREEN}build${NC}               Build all workspace crates in debug mode"
     echo -e "  ${GREEN}build-release${NC}       Build all workspace crates in release mode"
+    echo -e "  ${GREEN}install [target]${NC}    Install binaries to ~/.cargo/bin (cli, server, or all)"
+    echo -e "                      Example: ./run_modules.sh install"
     echo -e "  ${GREEN}check${NC}               Fast syntax & type checking (cargo check --workspace)"
     echo -e "  ${GREEN}cli [subcommand]${NC}    Execute Personal OS CLI binary ('pos')"
-    echo -e "                      Examples: cli status, cli doctor, cli thought search"
+    echo -e "                      Aliases: ./run_modules.sh pos [subcommand]"
+    echo -e "                      Examples: cli status, pos doctor, pos thought search"
     echo -e "  ${GREEN}server${NC}              Launch Personal OS API daemon & MCP server"
+    echo -e "                      Alias: ./run_modules.sh pos_server"
     echo -e "  ${GREEN}portal${NC}              Launch Enterprise Observability Hub Web Gateway"
     echo -e "  ${GREEN}gate${NC}                Run Percipience PR Verification Gate (7 stages)"
     echo -e "  ${GREEN}audit${NC}               Run Percipience Merkle state audit & maturity check"
     echo -e "  ${GREEN}clean${NC}               Clean target build artifacts"
     echo -e "  ${GREEN}list${NC}                List all 7 registered modules and recovery points"
     echo -e "  ${GREEN}help${NC}                Show this guidance screen"
+    echo ""
+    echo -e "${BOLD}Cargo Run Shortcuts:${NC}"
+    echo -e "  To run via Cargo directly, pass ${CYAN}--bin <name>${NC} or ${CYAN}-p <package>${NC}:"
+    echo -e "    ${CYAN}cargo run --bin pos -- status${NC}       or  ${CYAN}cargo run -p pos_cli -- status${NC}"
+    echo -e "    ${CYAN}cargo run --bin pos_server${NC}          or  ${CYAN}cargo run -p pos_server${NC}"
+    echo -e "  Bare ${CYAN}cargo run${NC} defaults to ${CYAN}pos${NC} (configured via default-members)."
     echo ""
 }
 
@@ -136,6 +146,33 @@ function cmd_build_release() {
     echo -e "${GREEN}✅ Release build completed successfully!${NC}"
 }
 
+function cmd_install() {
+    local target="${1:-all}"
+    case "${target}" in
+        all|"")
+            echo -e "${GREEN}${BOLD}📦 Installing Personal OS binaries ('pos' CLI & 'pos_server') to ~/.cargo/bin...${NC}"
+            cargo install --path workplace/modules/pos_cli --force
+            cargo install --path workplace/modules/pos_server --force
+            echo -e "\n${GREEN}✅ Successfully installed 'pos' and 'pos_server' to ~/.cargo/bin!${NC}"
+            ;;
+        cli|pos|pos_cli)
+            echo -e "${GREEN}${BOLD}📦 Installing Personal OS CLI ('pos') to ~/.cargo/bin...${NC}"
+            cargo install --path workplace/modules/pos_cli --force
+            echo -e "\n${GREEN}✅ Successfully installed 'pos' to ~/.cargo/bin!${NC}"
+            ;;
+        server|pos_server)
+            echo -e "${GREEN}${BOLD}📦 Installing Personal OS Daemon ('pos_server') to ~/.cargo/bin...${NC}"
+            cargo install --path workplace/modules/pos_server --force
+            echo -e "\n${GREEN}✅ Successfully installed 'pos_server' to ~/.cargo/bin!${NC}"
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown install target '${target}'.${NC}"
+            echo "Valid targets: all (default), cli (pos), server (pos_server)"
+            exit 1
+            ;;
+    esac
+}
+
 function cmd_check() {
     echo -e "${CYAN}${BOLD}🔍 Checking workspace syntax and types...${NC}"
     cargo check --workspace
@@ -194,13 +231,16 @@ case "${COMMAND}" in
     build-release)
         cmd_build_release
         ;;
+    install)
+        cmd_install "$2"
+        ;;
     check)
         cmd_check
         ;;
-    cli)
+    cli|pos|pos_cli)
         cmd_cli "$@"
         ;;
-    server)
+    server|pos_server)
         cmd_server
         ;;
     portal)

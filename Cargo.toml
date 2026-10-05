@@ -9,3 +9,4 @@ members = [
     "workplace/modules/pos_server",
     "workplace/modules/pos_cli",
 ]
+default-members = ["workplace/modules/pos_cli"]

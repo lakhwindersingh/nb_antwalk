@@ -1,6 +1,8 @@
 use std::sync::Arc;
-use pos_server::{PersonalOsService, McpServer};
+use pos_server::{PersonalOsService, McpServer, bind_listener, start_http_server};
 use serde_json::json;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 #[tokio::test]
 async fn test_mcp_tools_list_12_tools() {
@@ -112,4 +114,51 @@ async fn test_mcp_email_triage_tool() {
 
     assert!(res["primary_category"].is_string());
     assert!(res["confidence"].as_f64().is_some());
+}
+
+#[tokio::test]
+async fn test_http_server_endpoints() {
+    let service = Arc::new(PersonalOsService::new_in_memory().expect("Failed to initialize service"));
+    let mcp = Arc::new(McpServer::new(Arc::clone(&service)));
+
+    let (listener, port) = bind_listener(18080).await;
+    let mcp_clone = Arc::clone(&mcp);
+    let service_clone = Arc::clone(&service);
+    tokio::spawn(async move {
+        start_http_server(listener, mcp_clone, service_clone).await;
+    });
+
+    // Test GET /health
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).await.expect("connect");
+    let req = format!("GET /health HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n", port);
+    stream.write_all(req.as_bytes()).await.expect("write");
+    let mut buf = vec![0u8; 4096];
+    let n = stream.read(&mut buf).await.expect("read");
+    let response = String::from_utf8_lossy(&buf[..n]);
+    assert!(response.starts_with("HTTP/1.1 200 OK"));
+    assert!(response.contains("\"status\": \"HEALTHY\""));
+
+    // Test GET /tools
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).await.expect("connect");
+    let req = format!("GET /tools HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n", port);
+    stream.write_all(req.as_bytes()).await.expect("write");
+    let mut buf = vec![0u8; 4096];
+    let n = stream.read(&mut buf).await.expect("read");
+    let response = String::from_utf8_lossy(&buf[..n]);
+    assert!(response.starts_with("HTTP/1.1 200 OK"));
+    assert!(response.contains("orchestration_route"));
+
+    // Test POST /mcp (JSON-RPC ping)
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).await.expect("connect");
+    let body = r#"{"jsonrpc":"2.0","id":42,"method":"ping"}"#;
+    let req = format!(
+        "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        port, body.len(), body
+    );
+    stream.write_all(req.as_bytes()).await.expect("write");
+    let mut buf = vec![0u8; 4096];
+    let n = stream.read(&mut buf).await.expect("read");
+    let response = String::from_utf8_lossy(&buf[..n]);
+    assert!(response.starts_with("HTTP/1.1 200 OK"));
+    assert!(response.contains("\"result\": \"pong\""));
 }

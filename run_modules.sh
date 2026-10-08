@@ -74,6 +74,8 @@ function print_usage() {
     echo -e "                      Examples: cli status, pos doctor, pos thought search"
     echo -e "  ${GREEN}server${NC}              Launch Personal OS API daemon & MCP server"
     echo -e "                      Alias: ./run_modules.sh pos_server"
+    echo -e "  ${GREEN}mcp-http [url]${NC}      Stdio-to-HTTP JSON-RPC bridge for MCP consumers"
+    echo -e "                      Defaults to http://127.0.0.1:8080/mcp"
     echo -e "  ${GREEN}portal${NC}              Launch Enterprise Observability Hub Web Gateway"
     echo -e "  ${GREEN}gate${NC}                Run Percipience PR Verification Gate (7 stages)"
     echo -e "  ${GREEN}audit${NC}               Run Percipience Merkle state audit & maturity check"
@@ -190,8 +192,34 @@ function cmd_cli() {
 }
 
 function cmd_server() {
-    echo -e "${MAGENTA}${BOLD}🌐 Starting Personal OS API Daemon & MCP Server...${NC}"
-    cargo run -p pos_server
+    shift || true
+    echo -e "${MAGENTA}${BOLD}🌐 Starting Personal OS API Daemon & MCP Server...${NC}" >&2
+    if [[ -x "${REPO_ROOT}/target/debug/pos_server" ]]; then
+        exec "${REPO_ROOT}/target/debug/pos_server" "$@"
+    else
+        exec cargo run --quiet -p pos_server -- "$@"
+    fi
+}
+
+function cmd_bridge() {
+    local target_url="${1:-http://127.0.0.1:8080/mcp}"
+    python3 -c '
+import sys, json, urllib.request
+
+target = sys.argv[1]
+buffer = ""
+for line in sys.stdin:
+    buffer += line
+    try:
+        data = json.loads(buffer)
+        req = urllib.request.Request(target, data=json.dumps(data).encode("utf-8"), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req) as resp:
+            sys.stdout.write(resp.read().decode("utf-8") + "\n")
+            sys.stdout.flush()
+        buffer = ""
+    except json.JSONDecodeError:
+        continue
+' "${target_url}"
 }
 
 function cmd_portal() {
@@ -200,7 +228,7 @@ function cmd_portal() {
 }
 
 function cmd_gate() {
-    echo -e "${YELLOW}${BOLD}🚦 Triggering Percipience PR Gatekeeper Verification...${NC}"
+    echo -e "${YELLOW}${BOLD}🚥 Triggering Percipience PR Gatekeeper Verification...${NC}"
     ./.nb/bin/percipience gate
 }
 
@@ -241,7 +269,10 @@ case "${COMMAND}" in
         cmd_cli "$@"
         ;;
     server|pos_server)
-        cmd_server
+        cmd_server "$@"
+        ;;
+    bridge|mcp-http|mcp-bridge)
+        cmd_bridge "$2"
         ;;
     portal)
         cmd_portal

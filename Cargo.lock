@@ -1356,8 +1356,12 @@ name = "pos_thoughts"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
+ "petgraph",
+ "pos_core",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tokio-test",

@@ -18,45 +18,17 @@
 //!   LLM-based semantic analysis across four categories: undefined terms,
 //!   missing specifics, unclear scope, and unspecified implementation details.
 //!
-//! - **AST Parsing**: Extracts structured information from markdown thoughts
-//!   (headings, code blocks, wikilinks, metadata) using pulldown-cmark.
+//! - **MVS Synthesis (E-THOUGHT-02)**: Normalizes unstructured thoughts into structured
+//!   Minimum Viable Set specifications.
 //!
-//! - **Entity Extraction**: Identifies named entities, concepts, and domain
-//!   terms for knowledge graph integration.
+//! - **Domain Layer Plan Generator (E-THOUGHT-04)**: Generates layerable domain
+//!   plans complying with `custom_domain_layer_template.md`.
 //!
-//! - **Storage**: Persists thoughts and evaluation results in SQLite with
-//!   bidirectional traceability to generated plans.
+//! - **Petgraph Task DAG (E-THOUGHT-05)**: Compiles plans into directed acyclic
+//!   task dependency graphs with cycle detection and parallel wave scheduling.
 //!
-//! ## Usage Example
-//!
-//! ```rust,no_run
-//! use pos_thoughts::actionability::ActionabilityEvaluator;
-//! use pos_thoughts::ambiguity::AmbiguityEvaluator;
-//! use pos_thoughts::LLMClient;
-//! use async_trait::async_trait;
-//! use std::error::Error as StdError;
-//!
-//! // Example mock client for demonstration
-//! struct MyLLMClient;
-//!
-//! #[async_trait]
-//! impl LLMClient for MyLLMClient {
-//!     async fn call(&self, _prompt: &str) -> Result<String, Box<dyn StdError>> {
-//!         Ok(r#"{"score": 0.85, "dimensions": {...}, "missing_elements": [], "confidence": 0.95}"#.to_string())
-//!     }
-//! }
-//!
-//! async fn evaluate_thought(content: &str) {
-//!     let llm_client = Box::new(MyLLMClient);
-//!
-//!     let actionability = ActionabilityEvaluator::new(llm_client);
-//!     let action_report = actionability.evaluate(content).await.unwrap();
-//!
-//!     if action_report.is_actionable() {
-//!         println!("Thought is ready for MVS synthesis!");
-//!     }
-//! }
-//! ```
+//! - **Autonomous Pipeline Bridge (E-THOUGHT-07 & E-THOUGHT-08)**: End-to-end
+//!   orchestration connecting thoughts to ephemeral worktrees with knowledge loop closure.
 //!
 //! ## Architecture Integration
 //!
@@ -71,6 +43,15 @@ use std::error::Error as StdError;
 
 pub mod actionability;
 pub mod ambiguity;
+pub mod mvs_synthesis;
+pub mod plan_compiler;
+pub mod task_dag;
+pub mod pipeline_bridge;
+
+pub use mvs_synthesis::{MvsComponent, MvsConstraint, MvsSpecification, MvsSynthesisError, MvsSynthesizer};
+pub use plan_compiler::{CompiledPlan, PlanCompiler};
+pub use task_dag::{PipelineTask, TaskDag, TaskDagError};
+pub use pipeline_bridge::{PipelineBridgeError, PipelineExecutionResult, ThoughtToProjectBridge};
 
 /// Trait for LLM client abstraction (shared across modules).
 #[async_trait]
@@ -78,11 +59,6 @@ pub trait LLMClient: Send + Sync {
     /// Call LLM with prompt, return response text.
     async fn call(&self, prompt: &str) -> Result<String, Box<dyn StdError>>;
 }
-
-// Future modules (blocked by Phase 1 core dependencies):
-// pub mod ast_parser;       // Requires pulldown-cmark
-// pub mod entity_extractor; // Requires NLP tokenization
-// pub mod storage;          // Requires SQLite + sqlx
 
 #[cfg(test)]
 mod integration_tests {

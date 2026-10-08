@@ -1,5 +1,29 @@
 {
   "mcpServers": {
+    "personal_os": {
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/run_modules.sh",
+      "args": [
+        "server"
+      ],
+      "env": {
+        "POS_PORT": "8080"
+      },
+      "description": "Personal OS MCP Server (12 Consolidated Action-Based Tools & Invariants serving stdio JSON-RPC and hosting HTTP gateway at http://127.0.0.1:8080/tools)"
+    },
+    "personal_os_http_bridge": {
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/run_modules.sh",
+      "args": [
+        "mcp-http",
+        "http://127.0.0.1:8080/mcp"
+      ],
+      "description": "Personal OS stdio-to-HTTP JSON-RPC bridge consuming the running server at http://127.0.0.1:8080/mcp and http://127.0.0.1:8080/tools"
+    },
+    "personal_os_remote": {
+      "url": "http://127.0.0.1:8080/mcp",
+      "tools_url": "http://127.0.0.1:8080/tools",
+      "health_url": "http://127.0.0.1:8080/health",
+      "description": "Personal OS HTTP MCP Server consuming http://127.0.0.1:8080/tools and http://127.0.0.1:8080/mcp"
+    },
     "percipience": {
       "command": "python3",
       "args": [

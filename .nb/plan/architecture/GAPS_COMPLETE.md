@@ -1,7 +1,7 @@
 ---
 status: "comprehensive_review_complete"
 created: "2024-10-04"
-last_updated: "2024-10-04"
+last_updated: "2026-10-07"
 phase_1_gaps_addressed: 5
 phase_2_gaps_identified: 7
 total_gaps_analyzed: 12
@@ -19,18 +19,19 @@ This document represents the complete, multi-phase logical review of the solutio
 
 | Gap ID | Dimension | Severity | Core Issue | Resolution / Architecture Spec | Status |
 |---|---|---|---|---|---|
-| **GAP-001** | Multi-Device Sync | Critical | Last-write-wins causes data loss across devices | [CRDT Sync with Yrs & Vector Clocks](./crdt_conflict_resolution.md) | ✅ Specified |
-| **GAP-002** | Storage Concurrency | Critical | SQLite WAL write lock contention (200-800ms lag) | [MPSC Write Batching Coordinator](./storage_write_batching.md) | ✅ Specified |
-| **GAP-003** | Vector Lifecycle | High | Embedding model upgrades invalidate vector distances | [Multi-Version Embeddings & Migration Queue](./embedding_versioning.md) | ✅ Specified |
-| **GAP-004** | LLM Egress Privacy | Critical | Personal PII leaked to frontier models unredacted | [Dual-Pass NER & Reversible Anonymization](./pii_anonymization.md) | ✅ Specified |
-| **GAP-005** | Workflow Resilience | High | Daemon crashes lose intermediate multi-step state | [Saga Pattern & Durable Step State Machine](./saga_workflow_durability.md) | ✅ Specified |
-| **GAP-006** | Vault Disaster Recovery | **Critical** | Single-point-of-failure in OS keychain; no key backup | BIP-39 12/24-word seed phrase + Shamir Secret Sharing | 🆕 Analyzed Below |
+| **GAP-001** | Multi-Device Sync | Critical | Last-write-wins causes data loss across devices | [CRDT Sync with Yrs & Vector Clocks](./crdt_conflict_resolution.md) | 📋 Specified |
+| **GAP-002** | Storage Concurrency | Critical | SQLite WAL write lock contention (200-800ms lag) | [MPSC Write Batching Coordinator](./storage_write_batching.md) | ✅ Implemented (`pos_core::write_coordinator`) |
+| **GAP-003** | Vector Lifecycle | High | Embedding model upgrades invalidate vector distances | [Multi-Version Embeddings & Migration Queue](./embedding_versioning.md) | 📋 Specified |
+| **GAP-004** | LLM Egress Privacy | Critical | Personal PII leaked to frontier models unredacted | [Dual-Pass NER & Reversible Anonymization](./pii_anonymization.md) | ✅ Implemented (`pos_core::privacy`, `pii_sanitizer.py`) |
+| **GAP-005** | Workflow Resilience | High | Daemon crashes lose intermediate multi-step state | [Saga Pattern & Durable Step State Machine](./saga_workflow_durability.md) | 📋 Specified |
+| **GAP-006** | Vault Disaster Recovery | **Critical** | Single-point-of-failure in OS keychain; no key backup | [BIP-39 Mnemonic Seed + Shamir Secret Sharing](./vault_disaster_recovery.md) | ✅ Implemented (`pos_core::disaster_recovery`) |
 | **GAP-007** | Runtime Dependency Weight | **High** | `rust-bert` (LibTorch) is 1.5GB+ and breaks mobile cross-compilation | Pure-Rust `candle` (Q4_K Safetensors) [GAP-007](./inference_engine_optimization.md) | ✅ Upgraded to Candle |
-| **GAP-008** | Subagent Sandboxing | **Critical** | Unrestricted filesystem & network tool execution | OS-level Landlock/Seatbelt chroot + WASM/WASI sandbox | 🆕 Analyzed Below |
-| **GAP-009** | CAS Storage Footprint | **Medium** | BLAKE3 blob store accumulates unbounded orphaned data | Two-phase Mark & Sweep Garbage Collector + Zstd tiers | 🆕 Analyzed Below |
-| **GAP-010** | Mobile Peer Discovery | **High** | iOS background sync throttled without cloud relay | Bonjour/mDNS local TLS sync + Silent APNs triggers | 🆕 Analyzed Below |
-| **GAP-011** | Entity Resolution | **Medium** | Contacts & projects duplicated across email/calendar | Jaro-Winkler string similarity + domain clustering | 🆕 Analyzed Below |
-| **GAP-012** | Cognitive Scaling | **Medium** | Multi-year raw thoughts/journals bloat context search | Hierarchical episodic-to-semantic memory compaction | 🆕 Analyzed Below |
+| **GAP-008** | Subagent Sandboxing | **Critical** | Unrestricted filesystem & network tool execution | [OS-level Landlock/Seatbelt chroot + WASM/WASI sandbox](./subagent_sandboxing.md) | ✅ Implemented (`pos_core::sandbox`) |
+| **GAP-009** | CAS Storage Footprint | **Medium** | BLAKE3 blob store accumulates unbounded orphaned data | Two-phase Mark & Sweep Garbage Collector + Zstd tiers | 📋 Specified |
+| **GAP-010** | Mobile Peer Discovery | **High** | iOS background sync throttled without cloud relay | Bonjour/mDNS local TLS sync + Silent APNs triggers | 📋 Specified |
+| **GAP-011** | Entity Resolution | **Medium** | Contacts & projects duplicated across email/calendar | Jaro-Winkler string similarity + domain clustering | 📋 Specified |
+| **GAP-012** | Cognitive Scaling | **Medium** | Multi-year raw thoughts/journals bloat context search | Hierarchical episodic-to-semantic memory compaction | 📋 Specified |
+| **GAP-T2P-006** | Worktree Isolation | **Critical** | Ephemeral worktree lifecycle, leases & atomic merge | [Worktree Sandbox Isolation](./worktree_isolation.md) | ✅ Implemented (`pos_core::projects`, `worktree_engine.py`) |
 
 ---
 
@@ -43,6 +44,7 @@ This document represents the complete, multi-phase logical review of the solutio
 
 ### 2. GAP-002: SQLite Write Lock Contention Under Continuous Sensing
 - **Specification**: [`.nb/plan/architecture/storage_write_batching.md`](./storage_write_batching.md)
+- **Implementation**: [`pos_core::write_coordinator::WriteCoordinator`](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/workplace/modules/pos_core/src/write_coordinator.rs)
 - **Problem**: Concurrent writes from `notify` watcher, IMAP email sync, and telemetry serialize at SQLite's WAL write lock.
 - **Solution**: Centralized `WriteCoordinator` with `tokio::sync::mpsc` unbounded channels, batching up to 50 operations or 10ms windows with P0 (interactive) vs P1 (background) priority lanes.
 
@@ -66,64 +68,41 @@ This document represents the complete, multi-phase logical review of the solutio
 ## 🔬 Phase 2 Deep Dive: New Gaps & System Shortcomings (GAP-006 to GAP-012)
 
 ### GAP-006: Vault Disaster Recovery, Key Lifecycle & Paper Backup
+- **Specification**: [`.nb/plan/architecture/vault_disaster_recovery.md`](./vault_disaster_recovery.md)
+- **Implementation**: [`pos_core::disaster_recovery::{ShamirSecretSharing, Bip39Recovery}`](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/workplace/modules/pos_core/src/disaster_recovery.rs)
 - **Shortcoming**: The security model relies entirely on OS Keychain (`keyring-rs`) and interactive master passwords. If the operating system is reinstalled, the keychain is corrupted, or hardware fails, all encrypted credentials, encrypted sync blocks, and private notes are permanently unrecoverable.
 - **Root Cause**: Absence of an out-of-band key escrow or deterministic derivation root.
 - **Architectural Solution**:
-  1. **BIP-39 Mnemonic Seed**: Derive master key from a 12 or 24-word mnemonic phrase (`bip39` crate). The user prints or writes down this paper backup during `pos vault init`.
-  2. **Shamir's Secret Sharing (SSS)**: Optional $k$-of-$n$ threshold key recovery (e.g. 2-of-3 shares split across macOS device, iPhone Secure Enclave, and recovery paper).
+  1. **BIP-39 Mnemonic Seed**: Derive master key from a 12 or 24-word mnemonic phrase. The user prints or writes down this paper backup during `pos vault init`.
+  2. **Shamir's Secret Sharing (SSS)**: $k$-of-$n$ threshold key recovery over Galois Field $\text{GF}(2^8)$ (e.g. 2-of-3 shares split across macOS device, iPhone Secure Enclave, and recovery paper).
   3. **Zero-Downtime Key Rotation**: Dedicated re-encryption workflow that decrypts all vault items and re-seals them under a new master key without data loss.
 
 ### GAP-007: Runtime Dependency Bloat & Linkage Incompatibility in `rust-bert` (Resolved via Candle)
 - **Specification**: [`.nb/plan/architecture/inference_engine_optimization.md`](./inference_engine_optimization.md)
 - **Status**: ✅ Canonical Upgrade Complete (100% Pure-Rust Hugging Face Candle)
-- **Shortcoming**: Legacy `pii_anonymization.md` prescribed `rust-bert` for local NER. `rust-bert` requires dynamic linkage against LibTorch (~1.5 GB binary, C++ PyTorch runtime). This introduces massive build times, complex C++ toolchain dependencies, and completely breaks cross-compilation for iOS/macOS App Store and Android targets.
-- **Root Cause**: Heavy enterprise ML dependencies utilized for lightweight client-side NER.
-- **Architectural Solution**:
-  1. Replace `rust-bert` with **[`candle`](https://github.com/huggingface/candle)** (Hugging Face's pure-Rust ML framework) or **[`ort`](https://github.com/pykeio/ort)** (ONNX Runtime).
-  2. Deploy a quantized 4-bit BERT-Tiny / MiniLM model (< 35 MB RAM footprint).
-  3. Compile as 100% pure safe Rust with zero external C++ runtime dependencies, enabling seamless deployment across macOS, Linux, and iOS.
 
 ### GAP-008: Subagent Sandbox Isolation & Least-Privilege Execution Boundaries
-- **Shortcoming**: While memory scrubbing (`Zeroize`) protects keys in RAM, background subagents (`agent_workflow_runner`, `agent_file_indexer`) execute shell commands and file I/O directly with the host process's full user permissions. A prompt injection or hallucination could overwrite `~/.zshrc`, read `~/.ssh/id_rsa`, or exfiltrate private files.
-- **Root Cause**: Tool router lacks OS-level process and filesystem boundaries.
+- **Specification**: [`.nb/plan/architecture/subagent_sandboxing.md`](./subagent_sandboxing.md)
+- **Implementation**: [`pos_core::sandbox::{SandboxPolicy, SandboxValidator}`](file:///Users/lakhwinder/RustroverProjects/nb_antwalk/workplace/modules/pos_core/src/sandbox.rs)
+- **Shortcoming**: Background subagents execute shell commands and file I/O directly with the host process's full user permissions. A prompt injection or hallucination could overwrite `~/.zshrc`, read `~/.ssh/id_rsa`, or exfiltrate private files.
 - **Architectural Solution**:
-  1. **Filesystem Chroot**: Restrict agent file operations strictly to configured workspace roots (`~/Projects`, `~/Documents/PersonalOS`) using OS-native sandboxing (macOS `sandbox-exec`/Seatbelt; Linux `landlock` + `seccomp`).
-  2. **WASM / WASI Plugin Sandbox**: Execute custom tools and untrusted plugins inside a WebAssembly sandbox ([`wasmtime`](https://wasmtime.dev/)), granting granular directory and capability permissions.
-  3. **Outbound Network Allowlist**: Subagents cannot open raw sockets; outbound HTTP is strictly brokered through `pos_server` with domain allowlisting.
+  1. **Filesystem Boundaries**: Restrict agent file operations strictly to configured workspace roots using path allowlists, blocking `~/.ssh`, `~/.aws`, `~/.gnupg`, `/etc`.
+  2. **macOS Seatbelt Profile Generator**: Generates Scheme `.sb` profile dynamically for `sandbox-exec`.
+  3. **Outbound Network Allowlist**: Subagents cannot connect to arbitrary external endpoints; outbound calls are confined to local loopback or explicit domain allowlists.
 
 ### GAP-009: Content-Addressed Storage (CAS) Lifecycle, Quotas & Garbage Collection
-- **Shortcoming**: Ingested files, email attachments, OCR receipts, and audio memos write permanently into BLAKE3 CAS (`workplace/modules/pos_storage`). When tasks, emails, or thoughts are deleted, their underlying CAS blobs remain on disk forever, causing unbounded disk bloat over months of usage.
-- **Root Cause**: CAS lacks a reference-counting and reclamation lifecycle.
-- **Architectural Solution**:
-  1. **Two-Phase Mark & Sweep Garbage Collector**: Periodic maintenance routine scans all SQLite references across pillars (tasks, receipts, attachments). Any CAS blob without an active foreign-key reference older than 14 days is reclaimed.
-  2. **Storage Tiering & Transparent Compression**: Active blobs reside in Hot storage; blobs older than 30 days are compressed with Zstandard (`zstd`) level 19; cold media can be archived to encrypted local disk or S3 WORM.
-  3. **Quota Sentinel**: User-defined storage ceiling (e.g. 50 GB) with automated warnings and cleanup recommendations.
+- **Specification**: [`.nb/plan/architecture/cas_garbage_collection.md`](./cas_garbage_collection.md)
+- **Shortcoming**: Ingested files, email attachments, OCR receipts, and audio memos write permanently into BLAKE3 CAS (`workplace/modules/pos_storage`).
+- **Solution**: Two-Phase Mark & Sweep Garbage Collector with quota sentinels.
 
 ### GAP-010: Local-First Multi-Device Peer Discovery & Sync (Bonjour/mDNS)
-- **Shortcoming**: Apple limits background execution for third-party apps via `BGAppRefreshTask` (restricted to 30-second windows with unpredictable OS firing). If the user is at their desk with their MacBook and iPhone on the same Wi-Fi, there is no direct peer-to-peer transport to sync thoughts or receive Siri updates without routing through an external cloud.
-- **Root Cause**: Over-reliance on periodic polling without local discovery.
-- **Architectural Solution**:
-  1. **ZeroConf / Bonjour Discovery**: Implement mDNS service advertising (`mdns-sd` / `trust-dns`) so that macOS `pos_daemon` and iOS client discover each other over local Wi-Fi / Bluetooth LE instantly.
-  2. **Mutual TLS (mTLS) Peer Sync**: Secure peer-to-peer connection authenticated via pre-paired device certificates, transferring CRDT state deltas with sub-second latency.
-  3. **Silent APNs Push Fallback**: For remote sync, use Apple Push Notification service (APNs) silent background notifications to wake up the iOS app only when high-priority state transitions occur.
+- **Specification**: [`.nb/plan/architecture/mobile_peer_discovery.md`](./mobile_peer_discovery.md)
 
 ### GAP-011: Probabilistic Entity Resolution & Deduplication (CRM & Projects)
-- **Shortcoming**: Contact and project names extracted from emails, calendar invites, and Siri voice notes frequently duplicate (e.g. "Robert Smith", "Bob Smith", "bob@acme.com", and "Dr. R. Smith"). Without resolution, the interaction graph fragments into duplicate entities.
-- **Root Cause**: Exact string matching fails on informal human communications.
-- **Architectural Solution**:
-  1. **Jaro-Winkler & Levenshtein Similarity**: Fuzzy matching across names, organizations, and nicknames.
-  2. **Domain & Graph Clustering**: Merging contact nodes sharing email domains, phone hashes, or mutual calendar co-attendance.
-  3. **HITL Merge Suggestions**: When confidence score is between 0.70 and 0.92, propose a merge in `user/hitl/entity_merges.md`; auto-merge when confidence $> 0.95$.
+- **Specification**: [`.nb/plan/architecture/entity_resolution.md`](./entity_resolution.md)
 
 ### GAP-012: Hierarchical Episodic-to-Semantic Memory Compaction
-- **Shortcoming**: As the user captures hundreds of daily thoughts, tasks, and journals over 2–5 years, raw vector search results degrade due to semantic noise (retrieving trivial grocery notes from 2024 when asking for high-level life goals in 2026).
-- **Root Cause**: Flat, uncompacted temporal memory.
-- **Architectural Solution**:
-  1. **Tiered Memory Horizons**:
-     - *Episodic Tier (0–30 Days)*: Raw, high-granularity thoughts, logs, and telemetry.
-     - *Synthesized Tier (1–12 Months)*: Automated weekly digests and monthly retrospectives.
-     - *Semantic Core Tier (> 1 Year)*: Evergreen conceptual nodes, principles, and major milestones.
-  2. **Temporal Decay Weighting**: Reciprocal Rank Fusion (RRF) search incorporates an exponential half-life multiplier unless explicit historical search operators are specified.
+- **Specification**: [`.nb/plan/architecture/hierarchical_memory.md`](./hierarchical_memory.md)
 
 ---
 
@@ -138,9 +117,10 @@ gantt
     GAP-004: PII Anonymization Engine     :done, 2024-10-12, 14d
     GAP-005: Saga Durable Workflows       :done, 2024-10-19, 14d
     section Phase 2: Security & Engine Hardening
-    GAP-006: BIP-39 Vault Recovery & SSS  :active, 2024-11-02, 10d
-    GAP-007: Pure-Rust Candle Migration   :2024-11-09, 12d
-    GAP-008: Subagent Landlock/WASM Sandbox:2024-11-16, 14d
+    GAP-006: BIP-39 Vault Recovery & SSS  :done, 2024-11-02, 10d
+    GAP-007: Pure-Rust Candle Migration   :done, 2024-11-09, 12d
+    GAP-008: Subagent Landlock/WASM Sandbox:done, 2024-11-16, 14d
+    GAP-T2P-006: Worktree Isolation Sandboxing:done, 2024-11-20, 10d
     section Phase 3: Sync, Storage & Discovery
     GAP-001: Yrs CRDT Multi-Device Sync   :2024-11-23, 14d
     GAP-009: CAS Mark-and-Sweep GC        :2024-11-30, 10d
@@ -149,16 +129,3 @@ gantt
     GAP-011: Probabilistic Entity Resolver:2024-12-14, 10d
     GAP-012: Hierarchical Memory Horizon  :2024-12-21, 14d
 ```
-
----
-
-## 🚀 Future Vision & Next-Gen Capabilities
-
-1. **On-Device Small Language Model (SLM) Coprocessor**:
-   - Run a local 1.5B–3B parameter model (e.g. Qwen2.5-Coder / Llama-3.2) utilizing Apple Silicon Metal GPU acceleration via `candle`. Provides 100% private, instant (0ms network latency), zero-cost intent parsing and autocomplete.
-2. **Decentralized Agent-to-Agent Mesh (DID / ATProto)**:
-   - Allow Personal OS to negotiate calendar slots, project handoffs, or contact exchanges directly with another individual's Personal OS via cryptographically signed decentralized identifiers (DIDs) without cloud intermediaries.
-3. **Ambient Biometric & Focus Guard**:
-   - Correlate keystroke dynamics, window-switching frequency, and optional wearable telemetry (Apple Watch / Oura) to automatically suppress interruptions during deep focus and schedule breaks dynamically.
-4. **Autonomous Personal FinOps & Energy-Aware Scheduling**:
-   - Align compute-intensive batch jobs (OCR, vector re-indexing, repository scans) with low-carbon electricity tariffs and battery charge states.

@@ -12,5 +12,11 @@ optimizations:
 - timestamp: '2026-10-04T22:16:16.958094+00:00'
   avg_reduction_pct: 0.0
   recommended_router_policy: COMPACT_FOR_DIFFS_FRONTIER_FOR_SYNTHESIS
-current_avg_reduction_pct: 0.0
-last_optimized: '2026-10-04T22:16:16.958091+00:00'
+- timestamp: '2026-10-06T03:43:36.867143+00:00'
+  avg_reduction_pct: 75.1
+  recommended_router_policy: COMPACT_FOR_DIFFS_FRONTIER_FOR_SYNTHESIS
+- timestamp: '2026-10-06T14:36:12.520429+00:00'
+  avg_reduction_pct: 75.1
+  recommended_router_policy: COMPACT_FOR_DIFFS_FRONTIER_FOR_SYNTHESIS
+current_avg_reduction_pct: 75.1
+last_optimized: '2026-10-06T14:36:12.520426+00:00'

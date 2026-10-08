@@ -179,6 +179,29 @@ impl Database {
                 status TEXT NOT NULL CHECK (status IN ('pending_hitl', 'approved', 'rejected', 'settled')),
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- 7. Worktree Isolation & Leases (RULE-WI-01 to RULE-WI-10)
+            CREATE TABLE IF NOT EXISTS worktrees (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                branch_name TEXT NOT NULL,
+                base_ref TEXT NOT NULL DEFAULT 'main',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                status TEXT NOT NULL CHECK (status IN ('provisioning', 'active', 'completed', 'failed', 'expired', 'cleaned')),
+                merged INTEGER NOT NULL DEFAULT 0,
+                cleaned_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS worktree_leases (
+                lease_id TEXT PRIMARY KEY,
+                worktree_id TEXT NOT NULL REFERENCES worktrees(id) ON DELETE CASCADE,
+                agent_id TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at TEXT NOT NULL,
+                extended_count INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL CHECK (status IN ('active', 'expired', 'released', 'revoked'))
+            );
             "#
         )?;
         Ok(())

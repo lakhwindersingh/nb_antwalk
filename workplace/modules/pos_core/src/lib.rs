@@ -10,7 +10,11 @@ pub mod merkle;
 pub use storage::{Database, StorageError};
 pub use vault::{SecretBuffer, LeaseToken, VaultManager};
 pub use privacy::RedactionSentinel;
-pub use projects::{Project, ProjectTask, WorktreeManager};
+pub use projects::{
+    CleanupReport, DiskUsageReport, ExecutionMode, ExecutionReport, ExecutionStatus, LeaseStatus,
+    MergeResult, Project, ProjectTask, QuarantineResult, TestResults, Worktree, WorktreeEngine,
+    WorktreeError, WorktreeLease, WorktreeManager, WorktreeStatus,
+};
 pub use thoughts::{Thought, ThoughtType};
 pub use activities::{Activity, Habit, StreakCalculator};
 pub use finance::{Transaction, TransactionStatus, HitlFinancialGate};

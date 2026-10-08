@@ -8,9 +8,22 @@
       <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_orchestrator/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_thoughts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_thoughts/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_cli/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_email/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_email/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_server/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_triage/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/workplace/modules/pos_triage/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_core/target" />
       <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_orchestrator/target" />
       <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_thoughts/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_cli/target" />
+      <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_email/target" />
+      <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_server/target" />
+      <excludeFolder url="file://$MODULE_DIR$/workplace/modules/pos_triage/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

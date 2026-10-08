@@ -1,0 +1,71 @@
+{
+  "mcpServers": {
+    "percipience": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core",
+        "PERCIPIENCE_TERMINAL_MODE": "1",
+        "PERCIPIENCE_AST_COMPRESSION": "1"
+      },
+      "description": "Percipience Context Engineering CLI for running multi-agent workflows, managing worktrees, and auditing Merkle ledger."
+    },
+    "ast_optimizer": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience",
+        "optimize"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
+      },
+      "description": "Polyglot Tree-Sitter 6D AST skeletonization and token pruning engine (cuts prompt overhead by 60-85%)."
+    },
+    "gatekeeper": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience",
+        "gate"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
+      },
+      "description": "Automated 7-stage CI/CD gatekeeper validating wire contracts, security invariants, and test regressions."
+    },
+    "merkle_auditor": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience",
+        "audit"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
+      },
+      "description": "Cryptographic SHA-256 Merkle DAG state auditor, recovery point validator, and maturity scorecard evaluator."
+    },
+    "worktree_manager": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience",
+        "worktree"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
+      },
+      "description": "Ephemeral Git worktree allocator and concurrency isolator preventing workspace clobbering."
+    },
+    "living_doc_engine": {
+      "command": "python3",
+      "args": [
+        ".nb/bin/percipience",
+        "doc"
+      ],
+      "env": {
+        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
+      },
+      "description": "AST-to-Mermaid architecture synchronizer and living contract documentation generator."
+    }
+  }
+}

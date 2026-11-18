@@ -26,15 +26,8 @@ class WorkflowOrchestrator:
             raise FileNotFoundError(f"Workflow definition not found at: {workflow_path}")
         with open(workflow_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        if "workflow_id" not in data and "id" in data:
-            data["workflow_id"] = data["id"]
-        if "steps" not in data and "stages" in data:
-            data["steps"] = data["stages"]
         if "workflow_id" not in data or "steps" not in data:
             raise ValueError(f"Invalid workflow schema in {workflow_path}")
-        for s in data["steps"]:
-            if isinstance(s, dict) and "id" not in s:
-                s["id"] = s.get("step_id") or s.get("stage_id") or s.get("name")
         return data
 
     @classmethod
@@ -51,22 +44,33 @@ class WorkflowOrchestrator:
         - `fan_in_barrier` waits for all steps in the parallel group to complete before proceeding.
         """
         step_executors = step_executors or {}
-        context = context or {}
+        context = context if context is not None else {}
+        if workflow_def.get("workflow_id") == "wf_sequential_plan_execution":
+            raise ValueError(
+                "Sequential plan workflows must be dispatched through WorkflowRunner.run_plan_by_id"
+            )
         steps: List[Dict[str, Any]] = workflow_def.get("steps", [])
-        
-        executed_steps: Set[str] = set()
-        step_results: Dict[str, Dict[str, Any]] = {}
-        total_start = time.time()
 
-        # Build dependency lookup
-        step_lookup = {s.get("id") or s.get("step_id") or s.get("stage_id"): s for s in steps}
+        step_lookup = {s["id"]: s for s in steps}
+        if len(step_lookup) != len(steps):
+            raise ValueError("Workflow contains duplicate step IDs")
+        for step in steps:
+            missing_dependencies = set(step.get("depends_on", [])) - set(step_lookup)
+            if missing_dependencies:
+                raise ValueError(
+                    f"Step {step['id']} references unknown dependencies: {sorted(missing_dependencies)}"
+                )
+
+        step_results: Dict[str, Dict[str, Any]] = {}
+        executed_steps: Set[str] = set()
         remaining_steps = list(steps)
+        total_start = time.time()
 
         while remaining_steps:
             # Find all steps whose dependencies are satisfied
             ready_steps = [
                 s for s in remaining_steps
-                if all(cls._is_dep_satisfied(dep, executed_steps) for dep in s.get("depends_on", []))
+                if all(dep in executed_steps for dep in s.get("depends_on", []))
             ]
 
             if not ready_steps:
@@ -91,27 +95,38 @@ class WorkflowOrchestrator:
                 group_results = cls._execute_parallel_group(group_steps, step_executors, max_workers, context)
                 for sid, res in group_results.items():
                     step_results[sid] = res
-                    executed_steps.add(sid)
-                    remaining_steps = [s for s in remaining_steps if s["id"] != sid]
+                failed = [(sid, res) for sid, res in group_results.items() if res.get("status") != "SUCCESS"]
+                if failed:
+                    sid, res = failed[0]
+                    return {
+                        "workflow_id": workflow_def.get("workflow_id"),
+                        "status": "FAILED",
+                        "failed_step": sid,
+                        "error": res.get("error"),
+                        "step_count": len(step_results),
+                        "executed_steps": step_results,
+                        "duration_sec": round(time.time() - total_start, 4),
+                    }
+                executed_steps.update(group_results)
+                remaining_steps = [s for s in remaining_steps if s["id"] not in group_results]
             else:
                 # Execute single step
                 target_step = ready_steps[0]
                 sid = target_step["id"]
                 res = cls._execute_single_step(target_step, step_executors, context)
                 step_results[sid] = res
-                executed_steps.add(sid)
-                remaining_steps = [s for s in remaining_steps if s["id"] != sid]
-
-                # If step failed and fail_action is fatal, abort early
-                if res.get("status") == "FAILED" and target_step.get("fail_action") in ["QUARANTINE_AND_HALT", "BLOCK_BREAKING_CHANGE"]:
+                if res.get("status") != "SUCCESS":
                     return {
                         "workflow_id": workflow_def.get("workflow_id"),
                         "status": "FAILED",
                         "failed_step": sid,
                         "error": res.get("error"),
+                        "step_count": len(step_results),
                         "executed_steps": step_results,
                         "duration_sec": round(time.time() - total_start, 4)
                     }
+                executed_steps.add(sid)
+                remaining_steps = [s for s in remaining_steps if s["id"] != sid]
 
         total_duration = round(time.time() - total_start, 4)
         return {
@@ -122,16 +137,6 @@ class WorkflowOrchestrator:
             "duration_sec": total_duration,
             "parallel_acceleration_enabled": True
         }
-
-    @classmethod
-    def _is_dep_satisfied(cls, dep: Any, executed_steps: Set[str]) -> bool:
-        """Checks whether a dependency (string ID or structured dict) is satisfied."""
-        if isinstance(dep, dict):
-            dep_id = dep.get("stage_id") or dep.get("step_id") or dep.get("id")
-            if dep.get("optional", False):
-                return True
-            return dep_id in executed_steps
-        return dep in executed_steps
 
     @classmethod
     def _execute_single_step(
@@ -148,13 +153,23 @@ class WorkflowOrchestrator:
         start_time = time.time()
         if func:
             try:
-                res = func(step=step, context=context)
+                try:
+                    res = func(step=step, context=context)
+                except TypeError:
+                    try:
+                        res = func(context)
+                    except TypeError:
+                        res = func(step, context)
+                if not isinstance(res, dict):
+                    raise TypeError(f"Executor for {sid} must return a result dictionary")
                 duration = round(time.time() - start_time, 4)
+                status = res.get("status")
                 return {
                     "step_id": sid,
                     "name": step.get("name", sid),
-                    "status": res.get("status", "SUCCESS"),
+                    "status": "SUCCESS" if status == "SUCCESS" else "FAILED",
                     "output": res,
+                    "error": res.get("error") if status != "SUCCESS" else None,
                     "duration_sec": duration
                 }
             except Exception as e:
@@ -166,16 +181,23 @@ class WorkflowOrchestrator:
                     "error": str(e),
                     "duration_sec": duration
                 }
-        else:
-            # Simulated default success handler for built-in step definitions
+        elif step.get("agent"):
             time.sleep(0.005)
             duration = round(time.time() - start_time, 4)
             return {
                 "step_id": sid,
                 "name": step.get("name", sid),
                 "status": "SUCCESS",
-                "output": {"message": f"Step {sid} executed successfully"},
+                "output": {"message": f"Step {sid} executed successfully via agent {step.get('agent')}"},
                 "duration_sec": duration
+            }
+        else:
+            return {
+                "step_id": sid,
+                "name": step.get("name", sid),
+                "status": "FAILED",
+                "error": f"No executor registered for step {sid} ({executor_key})",
+                "duration_sec": round(time.time() - start_time, 4)
             }
 
     @classmethod

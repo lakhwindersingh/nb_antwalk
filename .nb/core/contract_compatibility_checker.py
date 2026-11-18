@@ -4,6 +4,9 @@ Enforces Semantic Versioning (SemVer) and backward-compatibility rules on API & 
 Flags breaking field removals or payload type alterations.
 """
 
+import json
+import hashlib
+from pathlib import Path
 from typing import Dict, List, Any, Tuple
 
 class ContractCompatibilityChecker:
@@ -66,13 +69,67 @@ class ContractCompatibilityChecker:
 
     @classmethod
     def check_all_contracts(cls, workspace_root) -> Dict[str, Any]:
-        """Audits all contracts in context/contracts directory for backward compatibility."""
+        """Audits all contracts for backward compatibility against recorded baseline evidence."""
         from pathlib import Path
         root = Path(workspace_root)
-        contract_dir = (root / '.nb' / 'context' / 'contracts' if (root / '.nb' / 'context').exists() else root / 'context' / 'contracts')
-        contracts_found = list(contract_dir.glob('*.json')) if contract_dir.exists() else []
+        evidence_path = root / ".nb" / "context" / "ledger" / "contract_compatibility_results.json"
+        if evidence_path.is_file():
+            try:
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+                checks = evidence.get("checks", [])
+                if isinstance(checks, list) and checks:
+                    all_compatible = True
+                    violations = []
+                    for check in checks:
+                        if not isinstance(check, dict):
+                            all_compatible = False
+                            violations.append("Malformed check record")
+                            break
+                        base_rel = check.get("baseline_path", "")
+                        head_rel = check.get("candidate_path", "")
+                        base_path = (root / base_rel).resolve()
+                        head_path = (root / head_rel).resolve()
+                        if not base_path.is_file() or not head_path.is_file():
+                            all_compatible = False
+                            violations.append(f"Missing schema files: {base_rel} -> {head_rel}")
+                            break
+                        base_sha = hashlib.sha256(base_path.read_bytes()).hexdigest()
+                        head_sha = hashlib.sha256(head_path.read_bytes()).hexdigest()
+                        if base_sha != check.get("baseline_sha256") or head_sha != check.get("candidate_sha256"):
+                            all_compatible = False
+                            violations.append(f"Hash mismatch for {base_rel}")
+                            break
+                        try:
+                            import yaml
+                            base_obj = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
+                            head_obj = yaml.safe_load(head_path.read_text(encoding="utf-8")) or {}
+                        except Exception:
+                            base_obj = json.loads(base_path.read_text(encoding="utf-8"))
+                            head_obj = json.loads(head_path.read_text(encoding="utf-8"))
+                        res = cls.check_compatibility(base_obj, head_obj)
+                        if not res.get("is_compatible"):
+                            all_compatible = False
+                            violations.extend(res.get("violations", []))
+                    if all_compatible:
+                        return {
+                            "all_compatible": True,
+                            "contracts_checked": len(checks),
+                            "violations": []
+                        }
+                    else:
+                        return {
+                            "all_compatible": False,
+                            "contracts_checked": len(checks),
+                            "violations": violations
+                        }
+            except Exception as e:
+                return {
+                    "all_compatible": False,
+                    "contracts_checked": 0,
+                    "violations": [str(e)]
+                }
         return {
-            'all_compatible': True,
-            'contracts_checked': max(1, len(contracts_found)),
-            'violations': []
+            'all_compatible': False,
+            'contracts_checked': 0,
+            'violations': ['Baseline contract revisions are required for compatibility checks.']
         }

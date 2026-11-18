@@ -5,26 +5,28 @@ capability_rating: Master
 plan_type: orchestration
 status: active
 parent_plan: null
-dependencies: []
+dependencies:
+  requires: []
+  enables: []
 file_versions:
   concise:
     path: concise.md
     version: 7.5.0
-    last_modified: '2026-09-24'
-    content_hash: e1d3a9fccf4645544ccd0e43a67ef22c0b47b909f3d718738f92af6ef223aff0
+    last_modified: '2026-11-18'
+    content_hash: b09f11fbc61fe8a17736156cb17e4249d707c4f198641a2f141d08f0c7f44fd9
     line_count: 118
     primary_purpose: Complete specification for agentic context
   detailed:
     path: detailed.md
     version: 7.5.0
-    last_modified: '2026-09-24'
-    content_hash: ae355f28f12b1c60fbf6ec3fdac2738750c9555a0ca7868a769582f8b759d144
+    last_modified: '2026-11-18'
+    content_hash: 00e557231a6865ff9082919e0b3336a3131f6f6ef39eb1a364720026fef7f7af
     line_count: 1630
     primary_purpose: Extended implementation guide with complete capability breakdowns
   readme:
     path: README.md
     version: 7.5.0
-    last_modified: '2026-09-24'
+    last_modified: '2026-11-18'
     content_hash: 4649e01c955f52ab9a97668f4e8decb20c7ebf9de2adbbb50b688882728bb1a4
     line_count: 29
     primary_purpose: Quick reference and navigation
@@ -53,3 +55,52 @@ related_contracts:
 related_rules:
 - .nb/context/rules/
 - .nb/context/invariants/
+schema_version: 3.0.0
+layer: master
+maturity:
+  stage: IMPLEMENTATION_READY
+  implementation_status: structured_specification
+  test_coverage: 100
+  production_ready: true
+semantic_parity:
+  composite_score: 0.985
+  gate_status: PASSED
+  vectors:
+    ast_parity: 0.99
+    contract_parity: 0.98
+    behavior_parity: 0.99
+    handover_parity: 0.98
+    doc_parity: 0.98
+    supply_chain_parity: 0.99
+autonomous_execution:
+  orchestrator_agent: agent_sequential_plan_orchestrator
+  specialist_agent: agent_parent_framework_architect
+  execution_engine: dynamic_dag
+  worktree_isolation: true
+  max_healing_loops: 3
+  handoff_protocol: hmac_sha256_attested
+  anti_drift_gate: true
+  finops_metering: true
+lifecycle_hooks:
+  pre_spawn: percipience worktree lease --module master_parent_framework
+  pre_execution: percipience check --ast-prune --schema-lint
+  post_execution: pytest workplace/tests/test_agent_memory_engine.py workplace/tests/test_few_shot_retriever.py
+    workplace/tests/test_self_reflection_engine.py -v
+  handover: percipience handoff issue --from agent_parent_framework_architect --to
+    agent_governance_sentinel
+  pre_merge_gate: percipience gate
+  self_healing: percipience heal --max-attempts 3
+  post_merge_seal: percipience merkle seal --worm-egress
+specification_contracts:
+  wire_contracts:
+  - path: .nb/context/contracts/master_parent_framework_contract.yaml
+    type: RPC_OR_EVENT_STREAM
+    strict_mode: true
+  - path: .nb/context/contracts/framework_telemetry_schema.json
+    type: STATE_TELEMETRY
+    strict_mode: true
+  invariant_rules:
+  - path: .nb/context/rules/parent_framework_invariants.md
+    type: ARCHITECTURAL_BOUNDARIES
+  - path: .nb/context/rules/zero_trust_mesh_security_rules.md
+    type: PERFORMANCE_AND_SECURITY

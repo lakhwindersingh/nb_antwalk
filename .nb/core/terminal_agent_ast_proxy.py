@@ -11,6 +11,7 @@ import sys
 import json
 import uuid
 import time
+import threading
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
@@ -37,10 +38,178 @@ class TerminalAgentASTProxy:
     SUPPORTED_AGENTS = ["claude", "claude-code", "gemini", "gemini-cli", "aider", "cursor-cli"]
     SUPPORTED_FORMATS = ["claude-code", "gemini-cli", "aider", "markdown", "json"]
 
+    CANONICAL_OUTPUT_PATHS = {
+        "claude-code": Path(".nb/context/percipience_claude_context.md"),
+        "gemini-cli": Path(".nb/context/percipience_gemini_context.md"),
+        "aider": Path(".nb/context/percipience_aider_context.md"),
+    }
+
     @classmethod
     def estimate_tokens(cls, text: str) -> int:
         """Heuristic token estimator (approx 4 chars per token)."""
         return max(1, len(text) // 4)
+
+    @classmethod
+    def get_canonical_output_path(cls, workspace_root: Path, format_type: str = "claude-code") -> Path:
+        """Returns the canonical .nb context path for the specified format."""
+        workspace_root = Path(workspace_root).resolve()
+        rel_p = cls.CANONICAL_OUTPUT_PATHS.get(format_type, Path(".nb/context/percipience_claude_context.md"))
+        return workspace_root / rel_p
+
+    @classmethod
+    def is_context_stale(
+        cls,
+        workspace_root: Path,
+        format_type: str = "claude-code",
+        target_path: Optional[Path] = None
+    ) -> Tuple[bool, float]:
+        """
+        High-speed (<20ms) modification-time check across workspace source files.
+        Determines whether the exported AST context is stale compared to latest code changes.
+        """
+        workspace_root = Path(workspace_root).resolve()
+        out_p = target_path or cls.get_canonical_output_path(workspace_root, format_type)
+        if not out_p.exists():
+            return True, 0.0
+
+        ctx_mtime = out_p.stat().st_mtime
+        workplace_dir = workspace_root / "workplace"
+        if not workplace_dir.exists():
+            workplace_dir = workspace_root
+
+        check_extensions = {".py", ".ts", ".js", ".kt", ".java", ".html", ".jsx", ".tsx", ".yaml", ".json"}
+        latest_src_mtime = 0.0
+
+        # Fast scan source files in workplace
+        for root, dirs, files in os.walk(workplace_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "build", "__pycache__", ".gradle", "dist")]
+            for f in files:
+                if any(f.endswith(ext) for ext in check_extensions):
+                    try:
+                        mtime = os.path.getmtime(os.path.join(root, f))
+                        if mtime > latest_src_mtime:
+                            latest_src_mtime = mtime
+                            if latest_src_mtime > ctx_mtime:
+                                return True, latest_src_mtime
+                    except OSError:
+                        continue
+
+        # Also check wire contracts in .nb/context/contracts
+        contracts_dir = workspace_root / ".nb" / "context" / "contracts"
+        if contracts_dir.exists():
+            for c_file in contracts_dir.glob("*.*"):
+                try:
+                    mtime = c_file.stat().st_mtime
+                    if mtime > latest_src_mtime:
+                        latest_src_mtime = mtime
+                        if latest_src_mtime > ctx_mtime:
+                            return True, latest_src_mtime
+                except OSError:
+                    continue
+
+        return (latest_src_mtime > ctx_mtime), latest_src_mtime
+
+    @classmethod
+    def export_and_save_context(
+        cls,
+        workspace_root: Path,
+        format_type: str = "claude-code",
+        output_path: Optional[Path] = None,
+        force: bool = False,
+        target_modules: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Exports AST context atomically. If not forced and context is already fresh,
+        skips expensive AST regeneration in under 20ms.
+        """
+        workspace_root = Path(workspace_root).resolve()
+        out_p = Path(output_path).resolve() if output_path else cls.get_canonical_output_path(workspace_root, format_type)
+
+        if not force:
+            stale, _ = cls.is_context_stale(workspace_root, format_type, target_path=out_p)
+            if not stale and out_p.exists():
+                return {
+                    "status": "UP_TO_DATE",
+                    "stale": False,
+                    "format": format_type,
+                    "context_file": str(out_p),
+                    "message": f"Context file {out_p.name} is already up to date with workspace AST."
+                }
+
+        # Perform AST context extraction
+        res = cls.export_context(workspace_root, format_type=format_type, target_modules=target_modules)
+
+        # Atomic write: write to .tmp and rename
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        tmp_p = out_p.with_suffix(f"{out_p.suffix}.tmp.{uuid.uuid4().hex[:6]}")
+        tmp_p.write_text(res["payload"], encoding="utf-8")
+        tmp_p.replace(out_p)
+
+        # Backward compatibility: update root symlink if appropriate
+        if format_type == "claude-code":
+            root_link = workspace_root / ".percipience_claude_context.md"
+            try:
+                if root_link.is_symlink() or not root_link.exists():
+                    root_link.unlink(missing_ok=True)
+                    rel_target = os.path.relpath(out_p, workspace_root)
+                    root_link.symlink_to(rel_target)
+                elif root_link.exists() and not root_link.is_symlink():
+                    root_link.write_text(res["payload"], encoding="utf-8")
+            except Exception:
+                pass
+
+        return {
+            "status": "EXPORTED",
+            "stale": True,
+            "format": format_type,
+            "context_file": str(out_p),
+            "total_files": res["total_files"],
+            "raw_tokens": res["total_raw_tokens"],
+            "pruned_tokens": res["total_pruned_tokens"],
+            "tokens_saved": res["tokens_saved"],
+            "reduction_pct": res["reduction_pct"],
+            "message": f"Successfully exported AST context to {out_p.name} ({res['reduction_pct']}% reduction)"
+        }
+
+    @classmethod
+    def trigger_async_context_export(
+        cls,
+        workspace_root: Path,
+        format_type: str = "claude-code",
+        output_path: Optional[Path] = None,
+        debounce_seconds: float = 3.0,
+        force: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Asynchronously triggers context export in a detached background thread
+        with debouncing, so foreground operations (IDE, terminal, Git) return instantly (0ms).
+        """
+        workspace_root = Path(workspace_root).resolve()
+        out_p = Path(output_path).resolve() if output_path else cls.get_canonical_output_path(workspace_root, format_type)
+
+        def _worker():
+            try:
+                # Lower process scheduling priority if OS supports nice
+                if hasattr(os, "nice"):
+                    try:
+                        os.nice(10)
+                    except Exception:
+                        pass
+                if debounce_seconds > 0:
+                    time.sleep(debounce_seconds)
+                cls.export_and_save_context(workspace_root, format_type=format_type, output_path=out_p, force=force)
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+
+        return {
+            "status": "QUEUED_ASYNC",
+            "debounce_seconds": debounce_seconds,
+            "format": format_type,
+            "target_path": str(out_p)
+        }
 
     @classmethod
     def export_context(
@@ -269,9 +438,21 @@ class TerminalAgentASTProxy:
         context_file = context_dir / f"{session_id}_context.md"
         context_file.write_text(export_res["payload"], encoding="utf-8")
 
-        # Also write a project-level context for Claude Code / Gemini if appropriate
-        claude_md = workspace_root / ".percipience_claude_context.md"
-        claude_md.write_text(export_res["payload"], encoding="utf-8")
+        # Also write canonical context in .nb/context/
+        canonical_file = cls.get_canonical_output_path(workspace_root, format_type)
+        canonical_file.parent.mkdir(parents=True, exist_ok=True)
+        canonical_file.write_text(export_res["payload"], encoding="utf-8")
+
+        # Keep root compatibility symlink
+        legacy_claude_md = workspace_root / ".percipience_claude_context.md"
+        try:
+            if legacy_claude_md.is_symlink() or not legacy_claude_md.exists():
+                legacy_claude_md.unlink(missing_ok=True)
+                legacy_claude_md.symlink_to(os.path.relpath(canonical_file, workspace_root))
+            else:
+                legacy_claude_md.write_text(export_res["payload"], encoding="utf-8")
+        except Exception:
+            pass
 
         # Track token savings event in TokenTracker ledger
         try:
@@ -302,6 +483,7 @@ class TerminalAgentASTProxy:
             "agent_cmd": agent_cmd,
             "format": format_type,
             "context_file": str(context_file),
+            "canonical_context_file": str(canonical_file),
             "raw_tokens": export_res["total_raw_tokens"],
             "pruned_tokens": export_res["total_pruned_tokens"],
             "tokens_saved": export_res["tokens_saved"],
@@ -326,9 +508,9 @@ if [ -n "$PERCIPIENCE_PROJECT_ROOT" ] || [ -f "./.nb/bin/percipience" ]; then
     # Claude Code AST-Optimized Wrapper
     claude() {{
         if [ -f "./.nb/bin/percipience" ]; then
-            echo "\u26a1 [Percipience] Injecting AST-pruned context for Claude Code..."
-            ./.nb/bin/percipience context export --format claude-code --output .percipience_claude_context.md > /dev/null 2>&1
-            command claude --append-system-prompt "$(cat .percipience_claude_context.md 2>/dev/null)" "$@"
+            echo "\\u26a1 [Percipience] Injecting AST-pruned context for Claude Code..."
+            ./.nb/bin/percipience context sync --format claude-code > /dev/null 2>&1
+            command claude --append-system-prompt "$(cat .nb/context/percipience_claude_context.md 2>/dev/null)" "$@"
         else
             command claude "$@"
         fi
@@ -337,9 +519,9 @@ if [ -n "$PERCIPIENCE_PROJECT_ROOT" ] || [ -f "./.nb/bin/percipience" ]; then
     # Gemini CLI AST-Optimized Wrapper
     gemini() {{
         if [ -f "./.nb/bin/percipience" ]; then
-            echo "\u26a1 [Percipience] Injecting AST-pruned context for Gemini CLI..."
-            ./.nb/bin/percipience context export --format gemini-cli --output .percipience_gemini_context.md > /dev/null 2>&1
-            command gemini --context .percipience_gemini_context.md "$@"
+            echo "\\u26a1 [Percipience] Injecting AST-pruned context for Gemini CLI..."
+            ./.nb/bin/percipience context sync --format gemini-cli > /dev/null 2>&1
+            command gemini --context .nb/context/percipience_gemini_context.md "$@"
         else
             command gemini "$@"
         fi
@@ -348,15 +530,15 @@ if [ -n "$PERCIPIENCE_PROJECT_ROOT" ] || [ -f "./.nb/bin/percipience" ]; then
     # Aider AST-Optimized Wrapper
     aider() {{
         if [ -f "./.nb/bin/percipience" ]; then
-            echo "\u26a1 [Percipience] Injecting AST-pruned context for Aider..."
-            ./.nb/bin/percipience context export --format aider --output .percipience_aider_context.md > /dev/null 2>&1
+            echo "\\u26a1 [Percipience] Injecting AST-pruned context for Aider..."
+            ./.nb/bin/percipience context sync --format aider > /dev/null 2>&1
             command aider "$@"
         else
             command aider "$@"
         fi
     }}
 
-    echo "\u2705 Percipience Terminal AST Agent Proxy active for {shell_type}."
+    echo "\\u2705 Percipience Terminal AST Agent Proxy active for {shell_type}."
 fi
 """
         return hook_script
@@ -398,11 +580,12 @@ fi
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Percipience Terminal Agent AST Proxy")
-    parser.add_argument("action", choices=["export", "wrap", "hook", "summary"], help="Action to execute")
+    parser.add_argument("action", choices=["export", "sync", "wrap", "hook", "summary"], help="Action to execute")
     parser.add_argument("--format", choices=["claude-code", "gemini-cli", "aider", "markdown", "json"], default="claude-code")
     parser.add_argument("--agent", default="claude", help="Agent command name")
     parser.add_argument("--output", help="Output file path for exported context")
     parser.add_argument("--shell", default="zsh", choices=["zsh", "bash", "fish"], help="Shell type for hook")
+    parser.add_argument("--force", action="store_true", help="Force re-export ignoring cache")
 
     args = parser.parse_args()
     root = Path.cwd()
@@ -411,14 +594,19 @@ if __name__ == "__main__":
         res = TerminalAgentASTProxy.export_context(root, format_type=args.format)
         if args.output:
             Path(args.output).write_text(res["payload"], encoding="utf-8")
-            print(f"\u2705 Exported AST context to {args.output} ({res['tokens_saved']:,} tokens saved, {res['reduction_pct']}% reduction)")
+            print(f"\\u2705 Exported AST context to {args.output} ({res['tokens_saved']:,} tokens saved, {res['reduction_pct']}% reduction)")
         else:
             print(res["payload"])
+    elif args.action == "sync":
+        res = TerminalAgentASTProxy.export_and_save_context(
+            root, format_type=args.format, output_path=Path(args.output) if args.output else None, force=args.force
+        )
+        print(json.dumps(res, indent=2))
     elif args.action == "wrap":
         wrapped = TerminalAgentASTProxy.wrap_terminal_agent(args.agent, [], root, format_type=args.format)
-        print(f"\u2705 Wrapped {args.agent} session [{wrapped['session_id']}]:")
+        print(f"\\u2705 Wrapped {args.agent} session [{wrapped['session_id']}]:")
         print(f"   Context File: {wrapped['context_file']}")
-        print(f"   Tokens Saved: {wrapped['tokens_saved']:,} ({wrapped['reduction_pct']}%)")
+        print(f"   Tokens Saved: {wrapped['tokens_saved']:,} ({wrapped['reduction_pct']}%)\")")
         print(f"   Injected Env: {list(wrapped['env'].keys())}")
     elif args.action == "hook":
         print(TerminalAgentASTProxy.generate_shell_hook(args.shell))

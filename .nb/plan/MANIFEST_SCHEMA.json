@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Percipience Canonical Plan Manifest Schema v3.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plan_id",
+    "plan_name",
+    "version",
+    "layer",
+    "status",
+    "maturity",
+    "dependencies",
+    "semantic_parity",
+    "key_capabilities",
+    "file_versions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["3.0.0"]
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$"
+    },
+    "plan_name": {
+      "type": "string",
+      "minLength": 3
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "layer": {
+      "type": "string",
+      "enum": ["master", "l1", "l2", "test"]
+    },
+    "capability_rating": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "production", "draft", "deprecated"]
+    },
+    "maturity": {
+      "type": "object",
+      "required": ["stage", "implementation_status", "test_coverage", "production_ready"],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": ["PLANNED", "ACTIVE_DRAFT", "IMPLEMENTATION_READY", "COMPLETED", "DEPRECATED"]
+        },
+        "implementation_status": {
+          "type": "string"
+        },
+        "test_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "production_ready": {
+          "type": "boolean"
+        }
+      }
+    },
+    "semantic_parity": {
+      "type": "object",
+      "required": ["composite_score", "gate_status", "vectors"],
+      "properties": {
+        "composite_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "gate_status": {
+          "type": "string",
+          "enum": ["PASSED", "WARNING", "BLOCKED"]
+        },
+        "vectors": {
+          "type": "object",
+          "required": [
+            "ast_parity",
+            "contract_parity",
+            "behavior_parity",
+            "handover_parity",
+            "doc_parity",
+            "supply_chain_parity"
+          ],
+          "properties": {
+            "ast_parity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "contract_parity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "behavior_parity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "handover_parity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "doc_parity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "supply_chain_parity": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "required": ["requires"],
+      "properties": {
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "enables": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "key_capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "file_versions": {
+      "type": "object",
+      "required": ["concise", "detailed", "readme"],
+      "properties": {
+        "concise": {
+          "type": "object",
+          "required": ["path", "version", "last_modified", "content_hash", "line_count", "primary_purpose"],
+          "properties": {
+            "path": { "type": "string" },
+            "version": { "type": "string" },
+            "last_modified": { "type": "string" },
+            "content_hash": { "type": "string" },
+            "line_count": { "type": "integer" },
+            "primary_purpose": { "type": "string" }
+          }
+        },
+        "detailed": {
+          "type": "object",
+          "required": ["path", "version", "last_modified", "content_hash", "line_count", "primary_purpose"]
+        },
+        "readme": {
+          "type": "object",
+          "required": ["path", "version", "last_modified", "content_hash", "line_count", "primary_purpose"]
+        }
+      }
+    },
+    "autonomous_execution": {
+      "type": "object",
+      "properties": {
+        "orchestrator_agent": { "type": "string" },
+        "specialist_agent": { "type": "string" },
+        "execution_engine": { "type": "string" },
+        "worktree_isolation": { "type": "boolean" },
+        "max_healing_loops": { "type": "integer" },
+        "handoff_protocol": { "type": "string" },
+        "anti_drift_gate": { "type": "boolean" },
+        "finops_metering": { "type": "boolean" }
+      }
+    },
+    "lifecycle_hooks": {
+      "type": "object",
+      "properties": {
+        "pre_spawn": { "type": "string" },
+        "pre_execution": { "type": "string" },
+        "post_execution": { "type": "string" },
+        "handover": { "type": "string" },
+        "pre_merge_gate": { "type": "string" },
+        "self_healing": { "type": "string" },
+        "post_merge_seal": { "type": "string" }
+      }
+    },
+    "specification_contracts": {
+      "type": "object"
+    }
+  }
+}

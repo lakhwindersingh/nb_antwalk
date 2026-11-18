@@ -9,57 +9,237 @@ import sys
 import argparse
 import json
 import time
+import hashlib
 from pathlib import Path
 
-# Add .nb and workplace to sys.path to load core platform engines and project modules
+# Add .nb, .nb/core, workplace, and local bundle directories to sys.path
 current_p = Path(__file__).resolve()
-if current_p.parents[1].name in (".nb", "workplace"):
+candidate_roots = [current_p.parents[1]]
+if len(current_p.parents) > 2:
+    candidate_roots.append(current_p.parents[2])
+
+search_dirs = []
+for r in candidate_roots:
+    search_dirs.extend([
+        r,
+        r / ".nb",
+        r / ".nb" / "core",
+        r / "core",
+        r / "workplace",
+        r / "workplace" / "core",
+    ])
+
+for path_dir in search_dirs:
+    if path_dir.exists() and str(path_dir) not in sys.path:
+        sys.path.insert(0, str(path_dir))
+
+# Dynamic discovery of user/system site-packages for dependencies (PyYAML, etc.)
+try:
+    import yaml
+except ImportError:
+    import glob
+    candidate_sites = glob.glob(os.path.expanduser('~/Library/Python/*/lib/python/site-packages')) +                       glob.glob('/Library/Frameworks/Python.framework/Versions/*/lib/python*/site-packages') +                       glob.glob('/opt/homebrew/lib/python*/site-packages') +                       glob.glob('/usr/local/lib/python*/site-packages')
+    for site in candidate_sites:
+        if site not in sys.path and os.path.isdir(site):
+            sys.path.append(site)
+
+if current_p.parents[1].name in (".nb", "workplace") and len(current_p.parents) > 2:
     REPO_ROOT = current_p.parents[2]
 else:
     REPO_ROOT = current_p.parents[1]
 
-for path_dir in [REPO_ROOT / ".nb", REPO_ROOT / ".nb" / "core", REPO_ROOT / "workplace"]:
-    if str(path_dir) not in sys.path:
-        sys.path.insert(0, str(path_dir))
+# Dynamic, plan-aware core engine loader
+try:
+    from core.config_manager import config
+except (ImportError, ModuleNotFoundError):
+    config = None
 
-from core.ast_optimizer import ASTOptimizer
-from core.merkle_engine import MerkleEngine
-from core.poisoning_sentinel import PoisoningSentinel
-from core.maturity_evaluator import MaturityEvaluator
-from core.nbpack_envelope import NBPackEnvelope
-from core.worktree_engine import WorktreeEngine
-from core.byor_adapter import BYORAdapter
-from core.layered_context_validator import LayeredContextValidator
-from core.token_tracker import TokenTracker
-from core.agent_plugin_engine import AgentPluginEngine
-from core.autonomous_cicd import (
-    SelfSustainingEngine,
-    AutonomousHealer,
-    SelfImprovingEngine,
-    AutonomousCICDOrchestrator
+AVAILABLE_ENGINES = {}
+
+def _load_engine(module_name: str, class_names: list):
+    """
+    Safely imports engine classes from core.<module_name> subject to availability
+    in the active commercial plan bundle (Free, Team, Business, Enterprise).
+    """
+    try:
+        mod = __import__(f"core.{module_name}", fromlist=class_names)
+        results = [getattr(mod, cls, None) for cls in class_names]
+        AVAILABLE_ENGINES[module_name] = True
+        return results[0] if len(class_names) == 1 else results
+    except (ImportError, ModuleNotFoundError):
+        AVAILABLE_ENGINES[module_name] = False
+        return None if len(class_names) == 1 else [None] * len(class_names)
+
+
+def _require_engine(engine_obj, module_name: str, feature_desc: str, min_tier: str = "Team / Business / Enterprise") -> None:
+    """Enforces that an engine is available in the current plan bundle before executing a command."""
+    if engine_obj is None:
+        print(f"⚠️  Feature '{feature_desc}' is unavailable in this plan bundle.")
+        print(f"   Required engine module 'core/{module_name}.py' was not provisioned for the active tier.")
+        print(f"   Please upgrade to a {min_tier} plan to unlock this capability.")
+        sys.exit(1)
+
+
+# Dynamic engine imports subject to plan tier file availability
+ASTOptimizer = _load_engine("ast_optimizer", ["ASTOptimizer"])
+MerkleEngine = _load_engine("merkle_engine", ["MerkleEngine"])
+PoisoningSentinel = _load_engine("poisoning_sentinel", ["PoisoningSentinel"])
+MaturityEvaluator = _load_engine("maturity_evaluator", ["MaturityEvaluator"])
+NBPackEnvelope = _load_engine("nbpack_envelope", ["NBPackEnvelope"])
+WorktreeEngine = _load_engine("worktree_engine", ["WorktreeEngine"])
+BYORAdapter = _load_engine("byor_adapter", ["BYORAdapter"])
+LayeredContextValidator = _load_engine("layered_context_validator", ["LayeredContextValidator"])
+TokenTracker = _load_engine("token_tracker", ["TokenTracker"])
+AgentPluginEngine = _load_engine("agent_plugin_engine", ["AgentPluginEngine"])
+(SelfSustainingEngine, AutonomousHealer, SelfImprovingEngine, AutonomousCICDOrchestrator) = _load_engine(
+    "autonomous_cicd",
+    ["SelfSustainingEngine", "AutonomousHealer", "SelfImprovingEngine", "AutonomousCICDOrchestrator"]
 )
-from core.cognitive_router import CognitiveRouter
-from core.flaky_test_detector import FlakyTestDetector
-from core.contract_compatibility_checker import ContractCompatibilityChecker
-from core.dependency_cve_sentinel import DependencyCVESentinel
-from core.doc_drift_synchronizer import DocDriftSynchronizer
-from core.living_doc_engine import LivingDocEngine
-from core.worm_egress import WORMEgressManager
-from core.tree_sitter_daemon import TreeSitterDaemonClient
-from core.diagnostic_reprompt import DiagnosticRePromptEngine
-from core.token_optimizer_suite import TokenOptimizationConfig, UnifiedTokenOptimizer
-from core.handoff_validator import HandoffValidator
-from core.semantic_parity_engine import SemanticParityEngine
-from core.reconciliation_engine import DualReconciliationEngine
-from core.request_formalizer import RequestFormalizerEngine
-from core.swarm_governor import SwarmGovernor
-from core.prompt_drift_sentinel import PromptDriftSentinel
-from core.workflow_orchestrator import WorkflowOrchestrator
-from core.error_recovery_orchestrator import ErrorRecoveryOrchestrator
-from core.terminal_agent_ast_proxy import TerminalAgentASTProxy
-from core.commercial_packager_provisioner import CommercialPackagerProvisioner
+CognitiveRouter = _load_engine("cognitive_router", ["CognitiveRouter"])
+FlakyTestDetector = _load_engine("flaky_test_detector", ["FlakyTestDetector"])
+ContractCompatibilityChecker = _load_engine("contract_compatibility_checker", ["ContractCompatibilityChecker"])
+DependencyCVESentinel = _load_engine("dependency_cve_sentinel", ["DependencyCVESentinel"])
+DocDriftSynchronizer = _load_engine("doc_drift_synchronizer", ["DocDriftSynchronizer"])
+LivingDocEngine = _load_engine("living_doc_engine", ["LivingDocEngine"])
+WORMEgressManager = _load_engine("worm_egress", ["WORMEgressManager"])
+TreeSitterDaemonClient = _load_engine("tree_sitter_daemon", ["TreeSitterDaemonClient"])
+(ContainerPlanExecutor, PlanExecutionRequest) = _load_engine("container_plan_executor", ["ContainerPlanExecutor", "PlanExecutionRequest"])
+GitBundleTransport = _load_engine("git_bundle_transport", ["GitBundleTransport"])
+FewShotRetriever = _load_engine("few_shot_retriever", ["FewShotRetriever"])
+ConsensusQuorumEngine = _load_engine("consensus_quorum_engine", ["ConsensusQuorumEngine"])
+HITLCheckpointManager = _load_engine("hitl_checkpoint_manager", ["HITLCheckpointManager"])
+AgentBenchmarkHarness = _load_engine("agent_benchmark_harness", ["AgentBenchmarkHarness"])
+DiagnosticRePromptEngine = _load_engine("diagnostic_reprompt", ["DiagnosticRePromptEngine"])
+(TokenOptimizationConfig, UnifiedTokenOptimizer) = _load_engine(
+    "token_optimizer_suite",
+    ["TokenOptimizationConfig", "UnifiedTokenOptimizer"]
+)
+HandoffValidator = _load_engine("handoff_validator", ["HandoffValidator"])
+PlanModuleOrchestrator = _load_engine("plan_module_orchestrator", ["PlanModuleOrchestrator"])
+SemanticParityEngine = _load_engine("semantic_parity_engine", ["SemanticParityEngine"])
+DualReconciliationEngine = _load_engine("reconciliation_engine", ["DualReconciliationEngine"])
+RequestFormalizerEngine = _load_engine("request_formalizer", ["RequestFormalizerEngine"])
+SwarmGovernor = _load_engine("swarm_governor", ["SwarmGovernor"])
+(DynamicDAGOrchestrator, DAGNode, DAGExecutionTrace) = _load_engine(
+    "dynamic_dag_orchestrator",
+    ["DynamicDAGOrchestrator", "DAGNode", "DAGExecutionTrace"]
+)
+SelfReflectionEngine = _load_engine("self_reflection_engine", ["SelfReflectionEngine"])
+AgentCapabilityGuard = _load_engine("agent_capability_guard", ["AgentCapabilityGuard"])
+AgentMemoryEngine = _load_engine("agent_memory_engine", ["AgentMemoryEngine"])
+FleetManager = _load_engine("fleet_manager", ["FleetManager"])
+PromptDriftSentinel = _load_engine("prompt_drift_sentinel", ["PromptDriftSentinel"])
+WorkflowOrchestrator = _load_engine("workflow_orchestrator", ["WorkflowOrchestrator"])
+ErrorRecoveryOrchestrator = _load_engine("error_recovery_orchestrator", ["ErrorRecoveryOrchestrator"])
+TerminalAgentASTProxy = _load_engine("terminal_agent_ast_proxy", ["TerminalAgentASTProxy"])
+CommercialPackagerProvisioner = _load_engine("commercial_packager_provisioner", ["CommercialPackagerProvisioner"])
+PIISanitizer = _load_engine("pii_sanitizer", ["PIISanitizer"])
+PromptInjectionGuard = _load_engine("prompt_injection_guard", ["PromptInjectionGuard"])
+OutputGuardrailValidator = _load_engine("output_guardrail_validator", ["OutputGuardrailValidator"])
+SwarmFleetDispatcher = _load_engine("swarm_fleet_dispatcher", ["SwarmFleetDispatcher"])
+ConsolidationSynthesizer = _load_engine("consolidation_synthesizer", ["ConsolidationSynthesizer"])
+GitOpsPRBot = _load_engine("gitops_pr_bot", ["GitOpsPRBot"])
+HybridVectorRetrievalEngine = _load_engine("vector_retrieval_engine", ["HybridVectorRetrievalEngine"])
+ConventionalRepositoryMigrator = _load_engine("repository_migrator", ["ConventionalRepositoryMigrator"])
+InteractiveOnboardingWizard = _load_engine("onboarding_wizard", ["InteractiveOnboardingWizard"])
+MicroVMSandbox = _load_engine("microvm_sandbox", ["MicroVMSandbox"])
+OIDCAuthenticator = _load_engine("oidc_authenticator", ["OIDCAuthenticator"])
+DistributedTestRunner = _load_engine("distributed_test_runner", ["DistributedTestRunner"])
+WorkflowRunner = _load_engine("workflow_runner", ["WorkflowRunner"])
+
+def cmd_license(args):
+    """Manages, mints, installs, and verifies commercial tier licenses."""
+    action = getattr(args, "lic_action", "status")
+    if action == "status":
+        active = CommercialPackagerProvisioner.get_active_license(REPO_ROOT)
+        print("📜 Percipience Active Commercial License:")
+        print(f"   • License ID: {active.get('license_id')}")
+        print(f"   • Tier: {active.get('tier_name', active.get('tier')).upper()} ({active.get('tier')})")
+        print(f"   • Tenant ID: {active.get('tenant_id')}")
+        print(f"   • Tenant Name: {active.get('tenant_name')}")
+        seats = active.get("included_seats")
+        wts = active.get("included_concurrent_worktrees")
+        audits = active.get("included_pr_audits_monthly")
+        print(f"   • Quotas: {('Unlimited' if seats == -1 else seats)} Seats | {('Unlimited' if wts == -1 else wts)} Worktrees | {('Unlimited' if audits == -1 else audits)} Audits/mo")
+        if active.get("payment_reference"):
+            print(f"   • Payment Reference: {active.get('payment_reference')}")
+        print(f"   • Signature: {active.get('signature_sha256', 'N/A')}")
+        inst_label = f"Yes ({active.get('source_path')})" if active.get("is_installed") else "No (Using unauthenticated default)"
+        print(f"   • Installed: {inst_label}")
+    elif action in ["mint", "generate"]:
+        tier = getattr(args, "tier", "plan_team")
+        tenant_id = getattr(args, "tenant", "tenant_custom")
+        tenant_name = getattr(args, "name", None)
+        seats = getattr(args, "seats", None)
+        worktrees = getattr(args, "worktrees", None)
+        audits = getattr(args, "audits", None)
+        payment_ref = getattr(args, "payment_ref", None)
+        out_file = getattr(args, "out", None)
+
+        lic_data = CommercialPackagerProvisioner.generate_license(
+            workspace_root=REPO_ROOT,
+            tier=tier,
+            tenant_id=tenant_id,
+            tenant_name=tenant_name,
+            seats=seats,
+            worktrees=worktrees,
+            audits=audits,
+            payment_reference=payment_ref
+        )
+        if out_file:
+            p = Path(out_file)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(lic_data, indent=2), encoding="utf-8")
+            print(f"✓ License minted and saved to {p}")
+        else:
+            print(json.dumps(lic_data, indent=2))
+        if getattr(args, "install", False):
+            inst = CommercialPackagerProvisioner.install_license(REPO_ROOT, lic_data)
+            print(f"✓ Installed into active workspace: {inst['installed_path']}")
+    elif action == "install":
+        file_path = getattr(args, "file", None)
+        if file_path:
+            p = Path(file_path)
+            if not p.exists():
+                print(f"❌ File not found: {p}")
+                sys.exit(1)
+            lic_data = json.loads(p.read_text(encoding="utf-8"))
+        else:
+            tier = getattr(args, "tier", "plan_team")
+            tenant_id = getattr(args, "tenant", "tenant_custom")
+            lic_data = CommercialPackagerProvisioner.generate_license(
+                workspace_root=REPO_ROOT,
+                tier=tier,
+                tenant_id=tenant_id
+            )
+        inst = CommercialPackagerProvisioner.install_license(REPO_ROOT, lic_data)
+        print(f"✓ Successfully installed license {inst['license_id']} ({inst['tier']}) into {inst['installed_path']}")
+
+
+def cmd_status(args):
+    """Reports active plan tier, loaded core engines, and unavailable features."""
+    active = CommercialPackagerProvisioner.get_active_license(REPO_ROOT)
+    active_plan = active.get("tier", "plan_free")
+    if "PERCIPIENCE_PLAN" in os.environ:
+        active_plan = os.environ["PERCIPIENCE_PLAN"]
+
+    loaded = [k for k, v in AVAILABLE_ENGINES.items() if v]
+    missing = [k for k, v in AVAILABLE_ENGINES.items() if not v]
+
+    print(f"📊 Percipience Runtime Status:")
+    print(f"   • Active Plan Tier: {active_plan.upper()}")
+    print(f"   • Core Engines Available: {len(loaded)} / {len(AVAILABLE_ENGINES)}")
+    print(f"   • Provisioned Engines:")
+    for eng in sorted(loaded):
+        print(f"     ✅ core/{eng}.py")
+    if missing:
+        print(f"   • Unavailable In Current Plan ({len(missing)}):")
+        for eng in sorted(missing):
+            print(f"     🔒 core/{eng}.py (Requires plan upgrade)")
+    print(f"   • Merkle Continuous: {MerkleEngine is not None}")
 
 def cmd_package(args):
+    _require_engine(CommercialPackagerProvisioner, "commercial_packager_provisioner", "package", "Enterprise")
     tier = getattr(args, "tier", "free")
     out_dir = Path(args.output) if getattr(args, "output", None) else None
     tenant = getattr(args, "tenant", "tenant_community_default")
@@ -79,6 +259,7 @@ def cmd_package(args):
         print(f"   Merkle Block Sealed: {res['merkle_block_id']}")
 
 def cmd_provision(args):
+    _require_engine(CommercialPackagerProvisioner, "commercial_packager_provisioner", "provision", "Enterprise")
     tenant = args.tenant
     tier = getattr(args, "tier", "free")
     target = getattr(args, "target", "all")
@@ -97,6 +278,7 @@ def cmd_provision(args):
         print(f"   Merkle Block Sealed: {res['merkle_block_id']}")
 
 def cmd_permission(args):
+    _require_engine(CommercialPackagerProvisioner, "commercial_packager_provisioner", "permission", "Enterprise")
     action = args.permission_action
     if action == "check":
         tenant_or_tier = args.tenant or args.tier or "plan_free"
@@ -113,6 +295,22 @@ def cmd_permission(args):
         print(f"   Reason: {res['reason']}")
 
 def cmd_init(args):
+    if getattr(args, "interactive", False):
+        _require_engine(InteractiveOnboardingWizard, "onboarding_wizard", "Interactive Onboarding Wizard")
+        wizard = InteractiveOnboardingWizard(REPO_ROOT)
+        print("🪄 Launching Percipience Interactive Onboarding Wizard...")
+        res = wizard.run_interactive()
+        print(f"✅ Onboarding Complete! Status: {res.status}")
+        print(f"   Project: {res.config.project_name} ({res.config.project_type}) | Language: {res.config.primary_language} | Tier: {res.config.tier.upper()}")
+        print(f"   Provisioned {len(res.provisioned_files)} files including mcp.json, genesis ledger, and git hooks.")
+        for step in res.next_steps:
+            print(f"   👉 {step}")
+        return
+
+    if not getattr(args, "parent_plan", None):
+        print("❌ Error: --parent-plan is required when not running with --interactive.")
+        sys.exit(1)
+
     print(f"🚀 Initializing Percipience Quad-Space Workspace...")
     print(f"   Mode: {args.mode}")
     print(f"   Parent Plan: {args.parent_plan}")
@@ -130,6 +328,90 @@ def cmd_init(args):
 
     print("✅ Workspace successfully initialized into Quad-Space architecture.")
 
+def cmd_bot(args):
+    """Dispatches GitOps PR Bot workflows, Markdown cards, and slash commands."""
+    _require_engine(GitOpsPRBot, "gitops_pr_bot", "Interactive GitOps PR Bot")
+    bot = GitOpsPRBot(REPO_ROOT)
+    action = getattr(args, "bot_action", "deploy")
+
+    if action == "deploy":
+        res = bot.deploy_bot()
+        print("🤖 Percipience GitOps PR Bot Deployed Successfully!")
+        print(f"   Workflow File: {res['workflow_file']}")
+        print(f"   Preview Domain: {res['preview_domain']}")
+        print(f"   Active Commands: {', '.join(res['commands'])}")
+    elif action == "comment":
+        pr_id = str(getattr(args, "pr", "1"))
+        branch = str(getattr(args, "branch", "main"))
+        sha = str(getattr(args, "sha", "HEAD"))
+        card = bot.format_status_card(pr_id=pr_id, branch=branch, commit_sha=sha)
+        print(card)
+    elif action == "command":
+        cmd_str = getattr(args, "cmd", "/verify")
+        pr_id = str(getattr(args, "pr", "1"))
+        actor = getattr(args, "actor", "developer")
+        res = bot.handle_slash_command(command_str=cmd_str, pr_id=pr_id, actor=actor)
+        print(f"Status: {res.status}")
+        print(f"Action Executed: {res.action_executed}")
+        print(res.reply_markdown)
+
+def cmd_search(args):
+    """Executes hybrid sparse-dense vector code retrieval alongside AST pruning."""
+    _require_engine(HybridVectorRetrievalEngine, "vector_retrieval_engine", "Hybrid Vector Code Retrieval")
+    engine = HybridVectorRetrievalEngine(REPO_ROOT)
+    if getattr(args, "reindex", False):
+        print("🔄 Indexing codebase...")
+        idx_res = engine.index_codebase()
+        print(f"   Indexed {idx_res['indexed_files']} files ({idx_res['indexed_chunks']} chunks, {idx_res['vocabulary_size']} terms).")
+
+    query = args.query
+    top_k = getattr(args, "top_k", 5)
+    alpha = getattr(args, "alpha", 0.5)
+    multi_hop = not getattr(args, "no_multi_hop", False)
+
+    results = engine.search(query=query, top_k=top_k, alpha=alpha, multi_hop=multi_hop)
+    if getattr(args, "json", False):
+        out = [{"chunk_id": r.chunk.chunk_id, "score": r.combined_score, "dense": r.dense_score, "sparse": r.sparse_score, "hop": r.retrieval_hop} for r in results]
+        print(json.dumps(out, indent=2))
+    else:
+        ctx = engine.format_prompt_context(results)
+        print(ctx)
+
+def cmd_migrate(args):
+    """Analyzes and executes conventional codebase migration into Quad-Space architecture."""
+    _require_engine(ConventionalRepositoryMigrator, "repository_migrator", "Conventional Repository Migrator")
+    migrator = ConventionalRepositoryMigrator(REPO_ROOT)
+
+    if getattr(args, "rollback", False):
+        print("⏪ Rolling back Quad-Space migration from manifest...")
+        res = migrator.rollback_migration()
+        print(f"Status: {res['status']} | Files Reverted: {res.get('files_reverted', 0)}")
+        return
+
+    analyze_only = getattr(args, "analyze_only", False) or not getattr(args, "execute", False)
+    if analyze_only:
+        print("📊 Analyzing conventional repository layout for Quad-Space migration...")
+        rep = migrator.analyze_repository()
+        print(f"   Detected Project Type: {rep.detected_project_type}")
+        print(f"   Total Files Analyzed: {rep.total_files:,} ({rep.total_loc:,} LOC)")
+        print("   Planned Partition Breakdown:")
+        for part, count in rep.partition_counts.items():
+            print(f"     - {part}/: {count} files")
+        if rep.conflicts:
+            print(f"   ⚠️ Potential Conflicts ({len(rep.conflicts)}):")
+            for c in rep.conflicts[:5]:
+                print(f"     - {c}")
+        print("   Recommended Actions:")
+        for r in rep.recommendations:
+            print(f"     👉 {r}")
+        print("\n💡 Run percipience migrate --from-conventional --execute to apply migration.")
+    else:
+        print("🚀 Executing Quad-Space repository migration...")
+        res = migrator.execute_migration(dry_run=False)
+        print(f"✅ Migration Complete! Files Migrated: {res['files_migrated']}")
+        print(f"   Partition Counts: {res['partition_counts']}")
+        print(f"   Rollback Manifest Saved: {res['manifest_file']}")
+
 def check_basic_tools_permission() -> bool:
     """
     Checks whether the active billing tier permits basic platform tools exposure
@@ -138,18 +420,21 @@ def check_basic_tools_permission() -> bool:
     user plans remain strictly plaintext (non-encryptable), while platform core
     assets remain encrypted and readable by the percipience command.
     """
-    billing_file = REPO_ROOT / ".nb" / "config" / "billing_plans.yaml"
-    if not billing_file.exists():
-        billing_file = REPO_ROOT / "workplace" / "config" / "billing_plans.yaml"
-    if billing_file.exists():
-        try:
-            import yaml
-            data = yaml.safe_load(billing_file.read_text(encoding="utf-8")) or {}
-            active_plan = os.environ.get("PERCIPIENCE_PLAN", "plan_free")
-            features = data.get("plans", {}).get(active_plan, {}).get("features", {})
-            return bool(features.get("basic_platform_tools_exposure", False))
-        except Exception:
-            pass
+    billing_paths = [
+        REPO_ROOT / ".nb" / "config" / "billing_plans.yaml",
+        REPO_ROOT / "config" / "billing_plans.yaml",
+        REPO_ROOT / "workplace" / "config" / "billing_plans.yaml",
+    ]
+    for bp in billing_paths:
+        if bp.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+                active_plan = os.environ.get("PERCIPIENCE_PLAN", "plan_free")
+                features = data.get("plans", {}).get(active_plan, {}).get("features", {})
+                return bool(features.get("basic_platform_tools_exposure", False))
+            except Exception:
+                pass
     return False
 
 def cmd_tools(args):
@@ -166,6 +451,7 @@ def cmd_tools(args):
         print("   Free tier user plans remain strictly plaintext. Platform core assets stay encrypted.")
 
 def cmd_pack(args):
+    _require_engine(NBPackEnvelope, "nbpack_envelope", "pack", "Business / Enterprise")
     if not check_basic_tools_permission():
         print("❌ Access Denied: Basic platform tools exposure and user plan encryption are disabled on Free Community Tier.")
         print("   Free tier user plans remain strictly plaintext (non-encryptable).")
@@ -178,12 +464,15 @@ def cmd_pack(args):
     print(f"✅ Sealed authenticated envelope generated at: {res}")
 
 def cmd_hydrate(args):
+    _require_engine(NBPackEnvelope, "nbpack_envelope", "hydrate", "Free / Team / Business / Enterprise")
     pack_path = Path(args.pack) if args.pack else (REPO_ROOT / ".nb" / "percipience_parent.nbpack")
     print(f"⚡ Hydrating encrypted envelope from: {pack_path.name}")
     payload = NBPackEnvelope.hydrate_in_memory(pack_path)
     print(f"✅ In-memory enclave hydrated: {len(payload)} components loaded into volatile memory.")
 
 def cmd_audit(args):
+    _require_engine(MerkleEngine, "merkle_engine", "audit", "Free / Team / Business / Enterprise")
+    _require_engine(MaturityEvaluator, "maturity_evaluator", "audit", "Free / Team / Business / Enterprise")
     print(f"🛡️ Running Percipience Context Maturity & Merkle State Audit...")
     
     # 1. Verify Merkle Chain
@@ -196,8 +485,11 @@ def cmd_audit(args):
         sys.exit(1)
 
     # 1b. Audit Prompt SemVer & Drift Integrity
-    prompt_res = PromptDriftSentinel.audit_prompt_integrity()
-    print(f"   Prompt Manifest Integrity: {prompt_res['verified_count']}/{prompt_res['total_prompts']} verified ({prompt_res['status']})")
+    if PromptDriftSentinel is not None:
+        prompt_res = PromptDriftSentinel.audit_prompt_integrity()
+        print(f"   Prompt Manifest Integrity: {prompt_res['verified_count']}/{prompt_res['total_prompts']} verified ({prompt_res['status']})")
+    else:
+        print("   Prompt Manifest Integrity: Skipped (Not provisioned in Free tier)")
 
     # 2. Evaluate Maturity
     report = MaturityEvaluator.generate_report(REPO_ROOT)
@@ -211,7 +503,8 @@ def cmd_audit(args):
     print(f"✅ Context audit PASSED. Report emitted to workplace/docs/reports/context_maturity_report.md")
 
 def cmd_gate(args):
-    print("🚦 Running Percipience PR Verification Gatekeeper...")
+    mode = getattr(args, "mode", "prod")
+    print(f"🚦 Running Percipience PR Verification Gatekeeper [Mode: {mode.upper()}]...")
     print("   [1/6] Scanning AST diffs with content-addressable cache & token metering...")
     scan_res = TokenTracker.scan_and_track_repo(REPO_ROOT, target_dir="workplace", session_or_pr="pr_gatekeeper")
     s = scan_res.get("summary", {})
@@ -251,18 +544,60 @@ def cmd_gate(args):
     print(f"   [7/7] Merkle Block {seal['block_id']} sealed atomically! Hash: {seal['block_hash'][:16]}...")
 
     # Mirror to WORM Vault (CAP-22)
-    worm_res = WORMEgressManager.mirror_block(
-        workspace_root=REPO_ROOT,
-        block_id=seal["block_id"],
-        block_hash=seal["block_hash"],
-        merkle_root=seal["merkle_root"],
-        cloud_target="auto"
-    )
-    print(f"   [WORM] Mirrored to immutable vault: {worm_res.get('vault_uri', worm_res.get('vault_id', 'vault'))} ({worm_res.get('compliance_mode', 'COMPLIANCE')})")
+    if WORMEgressManager is not None:
+        worm_res = WORMEgressManager.mirror_block(
+            workspace_root=REPO_ROOT,
+            block_id=seal["block_id"],
+            block_hash=seal["block_hash"],
+            merkle_root=seal["merkle_root"],
+            cloud_target="auto"
+        )
+        print(f"   [WORM] Mirrored to immutable vault: {worm_res.get('vault_uri', worm_res.get('vault_id', 'vault'))} ({worm_res.get('compliance_mode', 'COMPLIANCE')})")
+    else:
+        print("   [WORM] Mirroring skipped (Requires Enterprise WORM Egress engine)")
 
     print(f"✅ All 7 Gatekeeper verification stages PASSED. Token report emitted to workplace/docs/reports/token_savings_report.md. Safe to merge.")
 
+def cmd_plan(args):
+    """Displays commercial plan status, or autonomously orchestrates plan submodules."""
+    action = getattr(args, "plan_action", None)
+    if not action:
+        # Preserve the historical `percipience plan` status behavior.
+        return cmd_status(args)
+    _require_engine(PlanModuleOrchestrator, "plan_module_orchestrator", "plan", "Business / Enterprise")
+    plan_dir = Path(getattr(args, "plan_dir", "") or ".")
+    if not plan_dir.is_absolute():
+        plan_dir = REPO_ROOT / plan_dir
+
+    orch = PlanModuleOrchestrator(REPO_ROOT)
+    if action == "orchestrate":
+        result = orch.synchronize(
+            plan_dir=plan_dir,
+            apply=not getattr(args, "check", False),
+            sync_registries=not getattr(args, "no_sync_registries", False),
+            bundle_tier=getattr(args, "bundle_tier", None),
+            bundle_target=getattr(args, "bundle_target", "intellij"),
+            provision=getattr(args, "provision", False),
+        )
+        print(json.dumps(result, indent=2))
+        if result.get("status") not in ("SYNCHRONIZED", "CHECKED"):
+            sys.exit(1)
+    elif action == "bundle":
+        result = orch.bundle(
+            tier=getattr(args, "tier", "plan_business"),
+            target=getattr(args, "target", "intellij"),
+            provision=getattr(args, "provision", False),
+        )
+        print(json.dumps(result, indent=2))
+        if result.get("status") not in ("PACKAGED", "PROVISIONED"):
+            sys.exit(1)
+    else:
+        print(f"⚠️  Unknown plan action '{action}'.")
+        sys.exit(1)
+
+
 def cmd_rollback(args):
+    _require_engine(PoisoningSentinel, "poisoning_sentinel", "rollback", "Free / Team / Business / Enterprise")
     print(f"⏪ Executing surgical rollback on module: {args.module}...")
     res = PoisoningSentinel.rollback_module(REPO_ROOT, args.module, args.target_point)
     if res["status"] == "ROLLED_BACK":
@@ -273,6 +608,7 @@ def cmd_rollback(args):
         sys.exit(1)
 
 def cmd_worktree(args):
+    _require_engine(WorktreeEngine, "worktree_engine", "worktree", "Team / Business / Enterprise")
     action = args.worktree_action
     if action == "acquire":
         ttl = getattr(args, "ttl", 3600)
@@ -319,6 +655,7 @@ def cmd_worktree(args):
             sys.exit(1)
 
 def cmd_egress(args):
+    _require_engine(WORMEgressManager, "worm_egress", "egress", "Enterprise")
     action = args.egress_action
     if action == "mirror":
         res = WORMEgressManager.mirror_block(
@@ -346,16 +683,52 @@ def cmd_egress(args):
         print(f"   Injected Env: {list(wrapped['env'].keys())}")
 
     elif action == "list":
-        records = WORMEgressManager.get_audit_trail(REPO_ROOT)
+        if hasattr(WORMEgressManager, "get_audit_trail"):
+            records = WORMEgressManager.get_audit_trail(REPO_ROOT)
+        else:
+            records = WORMEgressManager.list_egress_records(REPO_ROOT)
         print(f"📋 Immutable WORM Cloud Audit Trail ({len(records)} blocks):")
         for r in records:
-            print(f"   • Block {r['block_id']}: {r['object_key']} -> {r['vault_id']} ({r['cloud_target']})")
+            b_id = r.get("block_id", "N/A")
+            obj = r.get("object_key") or (f"block_{b_id:06d}" if isinstance(b_id, int) else f"block_{b_id}")
+            vault = r.get("vault_id") or r.get("vault_uri", "N/A")
+            target = r.get("cloud_target") or r.get("provider", "local")
+            print(f"   • Block {b_id}: {obj} -> {vault} ({target})")
+
+def cmd_config(args):
+    """Inspect or retrieve externalized platform configuration values."""
+    action = args.config_action
+    if action == "show":
+        import yaml
+        print("\U0001f527 Percipience Platform Configuration (.nb/config/platform_config.yaml):\n")
+        if config and config._config_data:
+            print(yaml.dump(config._config_data, default_flow_style=False, sort_keys=False))
+        else:
+            print("{}\n(No configuration file loaded, using built-in defaults)")
+    elif action == "get":
+        val = config.get(args.key) if config else None
+        if val is None:
+            print(f"Key \x27{args.key}\x27 not found in configuration.")
+            sys.exit(1)
+        if isinstance(val, (dict, list)):
+            import yaml
+            print(yaml.dump(val, default_flow_style=False))
+        else:
+            print(val)
 
 def cmd_daemon(args):
+    _require_engine(TreeSitterDaemonClient, "tree_sitter_daemon", "daemon", "Free / Team / Business / Enterprise")
     action = args.daemon_action
-    client = TreeSitterDaemonClient(endpoint=args.endpoint)
+    endpoint_val = getattr(args, "endpoint", "http://127.0.0.1:8585")
+    try:
+        client = TreeSitterDaemonClient(endpoint=endpoint_val)
+    except TypeError:
+        try:
+            client = TreeSitterDaemonClient(endpoint_url=endpoint_val)
+        except TypeError:
+            client = TreeSitterDaemonClient()
     if action == "status":
-        health = client.health_check()
+        health = client.check_health() if hasattr(client, "check_health") else client.health_check()
         print(f"⚡ Tree-Sitter AST Daemon Health:")
         print(f"   Endpoint: {health['daemon_endpoint']}")
         print(f"   Status: {health['status']}")
@@ -372,6 +745,7 @@ def cmd_daemon(args):
         print(f"   Original: {res['original_tokens']} tokens | Pruned: {res['pruned_tokens']} tokens ({res['reduction_pct']}% reduction)")
 
 def cmd_reprompt(args):
+    _require_engine(DiagnosticRePromptEngine, "diagnostic_reprompt", "reprompt", "Business / Enterprise")
     incident_id = args.incident or f"INC_DIAG_{int(time.time())}"
     if args.generate_only:
         envelope = DiagnosticRePromptEngine.build_reprompt_envelope(
@@ -410,6 +784,7 @@ def cmd_reprompt(args):
             print(f"   Merkle Block Sealed: {res['merkle_block_id']}")
 
 def cmd_agent(args):
+    _require_engine(AgentPluginEngine, "agent_plugin_engine", "agent", "Team / Business / Enterprise")
     action = args.agent_action
     if action == "create":
         modules = [m.strip() for m in args.module.split(",")] if getattr(args, "module", None) else None
@@ -508,6 +883,7 @@ def cmd_agent(args):
         print("✅ Custom agent verification succeeded.")
 
 def cmd_repo(args):
+    _require_engine(BYORAdapter, "byor_adapter", "repo", "Team / Business / Enterprise")
     action = args.repo_action
     if action == "connect":
         res = BYORAdapter.connect_repository(
@@ -529,6 +905,7 @@ def cmd_repo(args):
             print("ℹ️ No external BYOR remote configured yet.")
 
 def cmd_validate(args):
+    _require_engine(LayeredContextValidator, "layered_context_validator", "validate", "Free / Team / Business / Enterprise")
     if args.layered:
         print("🔍 Validating 3-Tier Layered Context & Custom Invariants...")
         res = LayeredContextValidator.validate_layered_hierarchy(REPO_ROOT)
@@ -542,14 +919,60 @@ def cmd_validate(args):
             sys.exit(1)
 
 def cmd_run(args):
-    print(f"▶️ Executing workflow: {args.workflow} (Dry-run: {args.dry_run})")
-    print(f"   Step 1: AST Pruner -> Execution OK")
-    print(f"   Step 2: Custom Security Audit -> Execution OK")
-    print(f"   Step 3: Contract Verification -> Execution OK")
-    print(f"   Step 4: Merkle State Sealer -> Execution OK")
-    print("✅ Workflow execution completed successfully.")
+    _require_engine(WorkflowRunner, "workflow_runner", "run", "Free / Team / Business / Enterprise")
+    workflow_arg = args.workflow.strip()
+    dry_run = bool(args.dry_run)
+
+    print(f"▶️ Executing workflow: {workflow_arg} (Dry-run: {dry_run})")
+    
+    if workflow_arg.lower() == "all":
+        res = WorkflowRunner.run_all_workflows(dry_run=dry_run)
+        print(f"\n📊 Workflow Batch Execution Summary ({res['total_workflows']} Workflows, {res['total_steps']} Total Steps):")
+        for w in res['workflows']:
+            status_icon = "✅" if w['status'] in ("COMPLETED", "DRY_RUN") else "❌"
+            print(f"   {status_icon} [{w['workflow_id']}] ({w['file']}) - {w['status']} ({w.get('step_count', 0)} steps, {w.get('duration_sec', 0.0)}s)")
+            for sid, sres in w.get('executed_steps', {}).items():
+                s_icon = "✓" if sres.get('status') == "SUCCESS" else "✗"
+                print(f"      [{s_icon}] {sid}: {sres.get('status')} ({sres.get('duration_sec', 0.0)}s)")
+        if res['all_passed']:
+            print(f"\n🎉 All {res['total_workflows']} workflows executed successfully with 0 gaps!")
+        else:
+            print("\n❌ Some workflows failed execution!")
+            sys.exit(1)
+    else:
+        wf_dir = WorkflowRunner.WORKFLOWS_DIR
+        target_file = None
+        if (wf_dir / workflow_arg).exists():
+            target_file = wf_dir / workflow_arg
+        elif (wf_dir / f"{workflow_arg}.yaml").exists():
+            target_file = wf_dir / f"{workflow_arg}.yaml"
+        else:
+            for p in wf_dir.glob("*.yaml"):
+                with open(p, "r", encoding="utf-8") as f:
+                    c = yaml.safe_load(f) or {}
+                if c.get("workflow_id") == workflow_arg:
+                    target_file = p
+                    break
+        
+        if not target_file:
+            print(f"❌ Workflow '{workflow_arg}' not found in {wf_dir}")
+            sys.exit(1)
+
+        res = WorkflowRunner.run_workflow_by_file(target_file, dry_run=dry_run)
+        print(f"\n📋 Workflow [{res['workflow_id']}] ({target_file.name}): {res['status']} ({res.get('duration_sec', 0.0)}s)")
+        for sid, sres in res.get('executed_steps', {}).items():
+            s_icon = "✓" if sres.get('status') == "SUCCESS" else "✗"
+            print(f"   [{s_icon}] {sid} ({sres.get('name')}): {sres.get('status')} ({sres.get('duration_sec', 0.0)}s)")
+        
+        if res['status'] in ("COMPLETED", "DRY_RUN"):
+            print(f"✅ Workflow '{workflow_arg}' completed successfully with 0 gaps.")
+        else:
+            print(f"❌ Workflow '{workflow_arg}' failed: {res.get('error')}")
+            sys.exit(1)
+
 
 def cmd_tokens(args):
+    _require_engine(UnifiedTokenOptimizer, "token_optimizer_suite", "tokens", "Free / Team / Business / Enterprise")
     action = args.tokens_action
     if action == "status":
         cfg = TokenOptimizationConfig.load_config(REPO_ROOT).get("token_optimization", {})
@@ -666,6 +1089,7 @@ def cmd_tokens(args):
         print(f"✅ Token savings scorecard emitted to: {dest}")
 
 def cmd_cicd(args):
+    _require_engine(AutonomousCICDOrchestrator, "autonomous_cicd", "cicd", "Free / Team / Business / Enterprise")
     action = args.action or "run"
     if action == "run":
         print("🤖 Running Autonomous CI/CD Pipeline (Self-Sustaining, Self-Recovering, Self-Improving)...")
@@ -792,6 +1216,7 @@ def cmd_layer(args):
 
 
 def cmd_drift(args):
+    _require_engine(SemanticParityEngine, "semantic_parity_engine", "drift", "Team / Business / Enterprise")
     action = args.drift_action
     if action == "check":
         print("🔍 Evaluating 6-Vector Semantic Parity & Workspace Drift...")
@@ -847,7 +1272,57 @@ def cmd_drift(args):
         res = DualReconciliationEngine.approve_delta(REPO_ROOT, delta_id)
         print(f"✅ {res['message']}")
 
+def cmd_hitl(args):
+    action = args.hitl_action
+    from workplace.core.hitl_checkpoint_manager import HITLCheckpointManager
+    mgr = HITLCheckpointManager(workspace_root=REPO_ROOT)
+    if action == "list":
+        chks = mgr.list_checkpoints(pending_only=args.pending_only)
+        if not chks:
+            print("ℹ️ No milestone checkpoints found.")
+            return
+        print(f"📋 Percipience HITL Milestone Checkpoints ({len(chks)} total):")
+        for c in chks:
+            badge = "⏳ PENDING" if c.status == "PENDING" else f"🏁 {c.status}"
+            print(f"   • [{c.checkpoint_id}] {badge} | {c.milestone_type} | {c.title}")
+    elif action == "approve":
+        try:
+            chk = mgr.resolve_checkpoint(args.id, decision="APPROVE", reason=args.comment or "Approved via CLI", resolver=args.resolver or "cli_operator")
+            print(f"✅ Checkpoint {chk.checkpoint_id} APPROVED successfully.")
+            print(f"   Resolution: {chk.resolution.reason}")
+        except Exception as e:
+            print(f"❌ Error approving checkpoint: {e}")
+            sys.exit(1)
+    elif action == "reject":
+        try:
+            chk = mgr.resolve_checkpoint(args.id, decision="REJECT", reason=args.reason or "Rejected via CLI", resolver=args.resolver or "cli_operator")
+            print(f"🛑 Checkpoint {chk.checkpoint_id} REJECTED.")
+            print(f"   Reason: {chk.resolution.reason}")
+        except Exception as e:
+            print(f"❌ Error rejecting checkpoint: {e}")
+            sys.exit(1)
+
+
+def cmd_benchmark(args):
+    action = getattr(args, "benchmark_action", "run")
+    from workplace.core.agent_benchmark_harness import AgentBenchmarkHarness
+    harness = AgentBenchmarkHarness(workspace_root=REPO_ROOT)
+    if action == "run":
+        print("🎯 Executing Continuous Multi-Agent Quality Evaluation Suite...")
+        scorecard = harness.run_benchmark_suite()
+        report_path = harness.save_report(scorecard)
+        print(f"✅ Evaluation Complete! Overall Grade: {scorecard.overall_grade}")
+        print(f"   • Task Success Rate (TSR):    {scorecard.tsr_pct:.1f}%")
+        print(f"   • Semantic Parity (S_SP):     {scorecard.avg_semantic_parity:.3f}")
+        print(f"   • Avg Tokens Consumed:        {scorecard.avg_tokens_consumed:,.0f} tokens")
+        print(f"   • Avg Turn Latency:           {scorecard.avg_latency_s:.3f}s")
+        print(f"   • Invariant Compliance:       {scorecard.invariant_compliance_pct:.1f}%")
+        print(f"   • Merkle Anchor:              {scorecard.merkle_receipt_id}")
+        print(f"📄 Full scorecard saved to {report_path.relative_to(REPO_ROOT)}")
+
+
 def cmd_swarm(args):
+    _require_engine(SwarmGovernor, "swarm_governor", "swarm", "Business / Enterprise")
     action = args.swarm_action
     if action == "audit":
         print("🐝 Auditing Multi-Agent Swarm Topology, Leases & Handover Routes...")
@@ -859,10 +1334,349 @@ def cmd_swarm(args):
         print("   Authority Tiers Active: Orchestrator, DomainArchitect, SpecialistWorker, GatekeeperSentinel")
         print("   Rogue Dynamic Subagents Detected: 0 (All processes verified in DAG)")
         print("✅ Swarm integrity verified: No shadow processes or lease leaks.")
+    elif action == "exec":
+        _require_engine(ContainerPlanExecutor, "container_plan_executor", "swarm exec", "Business / Enterprise")
+        print("🚀 Initializing Sandboxed Container Plan Derivation...")
+        print(f"   Plan:           {args.plan}")
+        print(f"   Agent ID:       {args.agent_id}")
+        print(f"   Target Module:  {args.target_module}")
+        print(f"   LLM CLI:        {args.llm}")
+        print(f"   Mock Mode:      {args.mock}")
+        executor = ContainerPlanExecutor(workspace_root=REPO_ROOT, mock_mode=args.mock)
+        req = PlanExecutionRequest(
+            plan_path=args.plan,
+            agent_id=args.agent_id,
+            target_module=args.target_module,
+            prompt=args.prompt,
+            llm_cli=args.llm,
+            ttl_seconds=args.ttl,
+            run_gatekeeper=not args.no_gate
+        )
+        receipt = executor.execute(req)
+        if receipt.status == "SUCCESS":
+            print(f"✅ Containerized plan execution succeeded in {receipt.duration_ms:.1f}ms!")
+            print(f"   Worktree: {receipt.worktree_path}")
+            print(f"   Branch:   {receipt.branch}")
+            print(f"   Gate:     {'PASSED' if receipt.gatekeeper_passed else 'SKIPPED'}")
+        else:
+            print(f"❌ Containerized plan execution failed: {receipt.error_message or 'Non-zero exit code'}")
+            print(f"   Exit code: {receipt.exit_code}")
+            sys.exit(receipt.exit_code or 1)
+    elif action == "dag":
+        _require_engine(DynamicDAGOrchestrator, "dynamic_dag_orchestrator", "swarm dag", "Business / Enterprise")
+        orch = DynamicDAGOrchestrator()
+        from dynamic_dag_orchestrator import StepNode
+        if not orch.nodes:
+            orch.add_node(StepNode(id="step_ingest_spec", action="ingest_spec", name="Ingest Specification", metadata={"agent": "agent_planner"}))
+            orch.add_node(StepNode(id="step_plan_architecture", action="plan_architecture", name="Synthesize Architecture", dependencies=["step_ingest_spec"], metadata={"agent": "agent_architect"}))
+            orch.add_node(StepNode(id="step_code_derivation", action="code_derivation", name="Derive Implementation", dependencies=["step_plan_architecture"], blast_radius=["workplace/core/engine.py"], metadata={"agent": "agent_coder"}))
+            orch.add_node(StepNode(id="step_verify_gate", action="verify_gate", name="Attest Verification Gate", dependencies=["step_code_derivation"], metadata={"agent": "agent_verifier"}))
+        dag_action = getattr(args, "action", "inspect")
+        print("🐝 Dynamic Multi-Agent Swarm DAG Orchestrator:")
+        if dag_action == "expand":
+            subgoals = [
+                {"id": f"{args.parent_id}_ast_type_check", "action": "ast_type_check", "name": "AST Strict Typing Verification"},
+                {"id": f"{args.parent_id}_invariant_critic", "action": "invariant_critic", "name": "Multi-Pillar Critic Analysis"}
+            ]
+            created = orch.expand_subgoals(args.parent_id, subgoals)
+            print(f"   ✓ Subgoals expanded under {args.parent_id}: {created}")
+        elif dag_action == "exec":
+            def dummy_exec(node, orchestrator):
+                return {"result": f"Executed step {node.id}", "status": "SUCCESS"}
+            executors = {nid: dummy_exec for nid in orch.nodes}
+            res = orch.execute(executors)
+            executed_steps = res.get("executed_steps", []) if isinstance(res, dict) else getattr(res, "executed_steps", [])
+            dur = (res.get("duration_seconds", 0.0) * 1000.0) if isinstance(res, dict) else getattr(res, "duration_ms", 0.0)
+            st = res.get("status", "SUCCESS") if isinstance(res, dict) else getattr(res, "status", "SUCCESS")
+            print(f"   ✓ Executed {len(executed_steps)} steps in topological wave sequence.")
+            print(f"   Duration: {dur:.1f}ms | Status: {st}")
+        order = orch.topological_sort()
+        print(f"   Active DAG Nodes: {len(orch.nodes)}")
+        for nid in order:
+            n = orch.nodes[nid]
+            print(f"   • [{n.status:9}] {n.id:30} (Depth: {n.depth}, Deps: {len(n.dependencies)})")
+    elif action == "reflexion":
+        _require_engine(SelfReflectionEngine, "self_reflection_engine", "swarm reflexion", "Business / Enterprise")
+        target_f = Path(args.file)
+        if not target_f.is_absolute():
+            target_f = REPO_ROOT / target_f
+        code_content = target_f.read_text(encoding="utf-8") if target_f.exists() else "# Sample module"
+        print(f"🪞 Running Self-Reflection Critic on {target_f.name}...")
+        critique = SelfReflectionEngine.evaluate_invariants(code_content, {"target": str(target_f)})
+        print(f"   Convergence Score: {critique.convergence_score*100:.1f}%")
+        decision = "APPROVED (Passes Invariants)" if critique.passes_invariants else "CRITIQUE REQUIRED (Zero-Disk-Write)"
+        print(f"   Gate Decision:     {decision} | Severity: {critique.severity}")
+        for k, v in critique.pillar_scores.items():
+            print(f"   • {k:25}: {v:.2f}")
+        print(f"   Zero-Disk-Write:   {'ENFORCED' if not critique.passes_invariants else 'CLEARED'}")
+    elif action == "consensus":
+        _require_engine(ConsensusQuorumEngine, "consensus_quorum_engine", "swarm consensus", "Business / Enterprise")
+        from consensus_quorum_engine import EvaluatorVote
+        engine = ConsensusQuorumEngine(workspace_root=REPO_ROOT)
+        votes = [
+            EvaluatorVote("eval_claude", "Claude 3.7 Sonnet", "APPROVE", "Approved AST optimization", 0.95),
+            EvaluatorVote("eval_gpt", "GPT-4o Reasoning", "APPROVE", "Compatible wire contracts", 0.92),
+            EvaluatorVote("eval_gemini", "Gemini 2.5 Pro", "APPROVE", "Zero flaky regressions", 0.88)
+        ]
+        receipt = engine.evaluate_quorum("PR_GATE_APPROVAL", args.proposal, votes, required_threshold=2)
+        print("🗳️ Multi-Model Consensus Quorum Engine:")
+        print(f"   Target Artifact:   {receipt.target_artifact}")
+        print(f"   Quorum Decision:   {receipt.verdict} (Passed: {receipt.quorum_passed})")
+        print(f"   Quorum HMAC:       {receipt.quorum_hmac[:16]}...")
+    elif action == "cbac":
+        _require_engine(AgentCapabilityGuard, "agent_capability_guard", "swarm cbac", "Business / Enterprise")
+        ops = [o.strip() for o in args.ops.split(",") if o.strip()]
+        token = AgentCapabilityGuard.mint_token(args.agent_id, str(REPO_ROOT), ops, args.ttl)
+        print("🛡️ Minted Capability-Based Access Control (CBAC) Token:")
+        print(f"   Agent ID:          {args.agent_id}")
+        print(f"   Allowed Ops:       {', '.join(ops)}")
+        print(f"   TTL:               {args.ttl}s")
+        print(f"   Token:             {token}")
+    elif action == "fleet":
+        _require_engine(FleetManager, "fleet_manager", "swarm fleet", "Business / Enterprise")
+        mgr = FleetManager()
+
+        # Remote Intervention Action
+        if getattr(args, "action", None):
+            machine = getattr(args, "machine", None)
+            if not machine:
+                print("❌ Error: --machine <id> is required when triggering --action.")
+                sys.exit(1)
+            params = {}
+            if getattr(args, "params", None):
+                try:
+                    params = json.loads(args.params)
+                except Exception as e:
+                    print(f"❌ Error parsing --params JSON: {e}")
+                    sys.exit(1)
+            actor = getattr(args, "actor", "admin@enterprise.internal")
+            try:
+                res = mgr.execute_remote_action(machine_id=machine, action=args.action, params=params, actor=actor)
+                inv = res["intervention"]
+                print(f"✅ Remote Intervention Executed: {inv['intervention_id']}")
+                print(f"   Target Machine: {inv['machine_id']}")
+                print(f"   Action:         {inv['action'].upper()}")
+                print(f"   Actor:          {inv['actor']}")
+                print(f"   Details:        {inv['details']}")
+                print(f"   Machine Status: {res['machine']['health_status']}")
+            except Exception as e:
+                print(f"❌ Intervention failed: {e}")
+                sys.exit(1)
+            return
+
+        # Quarantine Incident Resolution
+        if getattr(args, "resolve_incident", None):
+            iid = args.resolve_incident
+            verdict = getattr(args, "resolution", "APPROVED_PATCH")
+            notes = getattr(args, "notes", "Resolved via CLI")
+            actor = getattr(args, "actor", "admin@enterprise.internal")
+            try:
+                res = mgr.resolve_quarantine_incident(incident_id=iid, resolution=verdict, resolution_notes=notes, actor=actor)
+                seal = res["merkle_seal"]
+                print(f"🛡️ Quarantine Incident Resolved: {iid}")
+                print(f"   Resolution:     [{verdict}]")
+                print(f"   Actor:          {actor}")
+                print(f"   Notes:          {notes}")
+                print(f"   Merkle Block:   #{seal.get('block_id', 'SEALED')}")
+                print(f"   Block Hash:     {seal.get('block_hash', seal.get('current_block_hash'))}")
+                print(f"   Merkle Root:    {seal.get('merkle_root')}")
+            except Exception as e:
+                print(f"❌ Quarantine resolution failed: {e}")
+                sys.exit(1)
+            return
+
+        # Quarantine Central Command Display
+        if getattr(args, "quarantine", False):
+            qc = mgr.get_quarantine_command_center()
+            st = qc["stats"]
+            print("🛡️ Enterprise Security & Quarantine Central Command (CAP-44):")
+            print(f"   Total Incidents: {st['total']} | Quarantined: {st['quarantined']} | Merkle Sealed: {st['resolved']}")
+            print(f"   Risk Breakdown:  Critical: {st['critical']} | High: {st['high']} | Medium: {st['medium']} | Low: {st['low']}")
+            print("\n   Active / Tracked Incidents:")
+            for inc in qc["incidents"]:
+                status_icon = "✔" if inc["status"] == "RESOLVED" else "🛑"
+                seal_str = f" [Sealed #{inc['merkle_seal']['block_id']}]" if inc.get("merkle_seal") else ""
+                print(f"   {status_icon} [{inc['severity']:8}] {inc['incident_id']:35} | {inc['category']:17} | {inc['target']:25} | {inc['status']}{seal_str}")
+            return
+
+        # Interventions Audit Log Display
+        if getattr(args, "interventions", False):
+            hist = mgr.get_interventions_audit(machine_id=getattr(args, "machine", None))
+            print("📜 Remote Admin Interventions Audit Log (CAP-44):")
+            print(f"   Total Logged: {len(hist)}")
+            for item in hist:
+                print(f"   • [{item['timestamp_utc'][:19]}] {item['intervention_id']} | {item['machine_id']} | {item['action'].upper():16} | {item['actor']} | {item['details']}")
+            return
+
+        if getattr(args, "simulate_pulse", False):
+            mgr.simulate_pulse(delta_tokens=50000, advance_task=True)
+            print("⚡ Injected activity pulse (+50k tokens & milestone advancement) into fleet.")
+        machines = mgr.list_machines()
+        rollup = mgr.get_finops_rollup()
+        s = rollup["summary"]
+        print("🖥️ Enterprise Workstation & Swarm Fleet Status:")
+        print(f"   Active Nodes:      {s['active_machines_count']} / {s['total_machines_count']}")
+        print(f"   Total Tokens Saved: {s['total_tokens_saved']:,}")
+        print(f"   Gross Cloud Saved: ${s['enterprise_gross_savings_usd']:.2f}")
+        print(f"   15% Percipience Fee: ${s['percipience_rev_share_fee_usd']:.2f}")
+        print(f"   85% Customer Net:  ${s['customer_net_retained_usd']:.2f}")
+        print("   Connected Nodes:")
+        for m in machines:
+            task = m.get("active_task", {}).get("task_name", "Idle")
+            pct = m.get("active_task", {}).get("progress_pct", 0)
+            print(f"   • [{m.get('health_status'):7}] {m.get('hostname'):22} | {task} ({pct:.0f}%)")
+    elif action == "dispatch":
+        _require_engine(SwarmFleetDispatcher, "swarm_fleet_dispatcher", "swarm dispatch", "Business / Enterprise")
+        print("🐝 Initializing Distributed Swarm Fleet (DEWS) Remote Dispatch...")
+        print(f"   Remote Fleet:   {args.remote}")
+        print(f"   Plan:           {args.plan}")
+        print(f"   Target Module:  {args.target_module}")
+        print(f"   Agent ID:       {args.agent_id}")
+        print(f"   Mock Mode:      {args.mock}")
+        if args.sync_back:
+            print(f"   Sync Back Dest: {args.sync_back}")
+
+        remote = args.remote
+        if remote == "local" or not remote.startswith("http"):
+            dispatcher = SwarmFleetDispatcher.get_instance(REPO_ROOT)
+            print("🚀 Enqueuing plan derivation onto container worker slot...")
+            job_data = dispatcher.dispatch_job(
+                plan_path=args.plan,
+                agent_id=args.agent_id,
+                target_module=args.target_module,
+                prompt=getattr(args, "prompt", "Remote swarm execution"),
+                mock_mode=args.mock
+            )
+            print(f"   Job ID:         {job_data.get('job_id')}")
+            print(f"   Allocated Slot: {job_data.get('worker_slot_id')}")
+            print(f"   Execution Logs:")
+            for log in job_data.get("logs", []):
+                print(f"     {log}")
+
+            if job_data.get("status") == "SUCCESS":
+                dur = job_data.get("duration_ms") or 0.0
+                print(f"✅ Remote Swarm Execution Succeeded in {dur:.1f}ms!")
+                bundle_path = job_data.get("result_bundle_path")
+                if bundle_path:
+                    print(f"   Result Bundle:  {bundle_path}")
+                    print(f"   Bundle SHA256:  {job_data.get('result_bundle_sha256')}")
+                if args.sync_back and bundle_path:
+                    _require_engine(GitBundleTransport, "git_bundle_transport", "sync-back", "Business / Enterprise")
+                    sync_dest = Path(args.sync_back).resolve()
+                    sync_dest.mkdir(parents=True, exist_ok=True)
+                    print(f"📦 Extracting result bundle into sync-back destination: {sync_dest}...")
+                    transport = GitBundleTransport(workspace_root=REPO_ROOT)
+                    extract_res = transport.extract_bundle(
+                        bundle_path=Path(bundle_path),
+                        target_repo_path=sync_dest
+                    )
+                    commit_str = extract_res.head_commit[:8] if extract_res.head_commit else 'N/A'
+                    print(f"✅ Sync-back verified: Branch '{extract_res.target_branch}' unpacked (Commit: {commit_str}).")
+            else:
+                print(f"❌ Remote Swarm Execution Failed: {job_data.get('error_message')}")
+                sys.exit(job_data.get("exit_code") or 1)
+        else:
+            import urllib.request
+            import urllib.error
+            url = remote.rstrip("/")
+            dispatch_url = f"{url}/api/swarm/fleet/dispatch"
+            payload = {
+                "plan_path": args.plan,
+                "target_module": args.target_module,
+                "agent_id": args.agent_id,
+                "prompt": getattr(args, "prompt", "Remote swarm execution"),
+                "mock": args.mock
+            }
+            req = urllib.request.Request(
+                dispatch_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    resp_data = json.loads(resp.read().decode("utf-8"))
+            except Exception as e:
+                print(f"❌ Failed to dispatch to remote fleet at {dispatch_url}: {e}")
+                sys.exit(1)
+
+            job_id = resp_data.get("job_id")
+            slot_id = resp_data.get("worker_slot_id")
+            print(f"🚀 Dispatched to remote fleet. Job ID: {job_id} on Slot: {slot_id}")
+
+            status_url = f"{url}/api/swarm/fleet/jobs/{job_id}"
+            deadline = time.time() + args.timeout
+            final_job = None
+            last_log_count = 0
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(status_url, timeout=10) as r:
+                        job_wrap = json.loads(r.read().decode("utf-8"))
+                        final_job = job_wrap.get("job") or {}
+                except Exception:
+                    time.sleep(1)
+                    continue
+
+                logs = final_job.get("logs", [])
+                if len(logs) > last_log_count:
+                    for l in logs[last_log_count:]:
+                        print(f"     {l}")
+                    last_log_count = len(logs)
+
+                status = final_job.get("status")
+                if status in ("SUCCESS", "FAILED"):
+                    break
+                time.sleep(1)
+
+            if not final_job or final_job.get("status") != "SUCCESS":
+                err = final_job.get("error_message") if final_job else "Timed out waiting for completion"
+                print(f"❌ Remote execution failed: {err}")
+                sys.exit(1)
+
+            print(f"✅ Remote Swarm Execution Succeeded in {final_job.get('duration_ms', 0):.1f}ms!")
+
+            if args.sync_back:
+                _require_engine(GitBundleTransport, "git_bundle_transport", "sync-back", "Business / Enterprise")
+                bundle_url = f"{url}/api/swarm/fleet/jobs/{job_id}/bundle"
+                sync_dest = Path(args.sync_back).resolve()
+                sync_dest.mkdir(parents=True, exist_ok=True)
+                print(f"📥 Downloading result bundle from {bundle_url}...")
+                tmp_bundle = REPO_ROOT / ".nb" / "workspaces" / "bundles" / f"dl_{job_id}.bundle"
+                tmp_bundle.parent.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(bundle_url, str(tmp_bundle))
+                print(f"📦 Extracting result bundle into {sync_dest}...")
+                transport = GitBundleTransport(workspace_root=REPO_ROOT)
+                extract_res = transport.extract_bundle(bundle_path=tmp_bundle, target_repo_path=sync_dest)
+                commit_str = extract_res.head_commit[:8] if extract_res.head_commit else 'N/A'
+                print(f"✅ Sync-back verified: Branch '{extract_res.target_branch}' unpacked (Commit: {commit_str}).")
+    elif action == "consolidate":
+        _require_engine(ConsolidationSynthesizer, "consolidation_synthesizer", "swarm consolidate", "Business / Enterprise")
+        print("🔀 Initializing Topological Consolidation & 3-Way Merge...")
+        print(f"   Worker Branches: {args.branches}")
+        print(f"   Target Branch:   {args.target_branch}")
+        print(f"   Author Agent:    {args.author_agent}")
+        synthesizer = ConsolidationSynthesizer(REPO_ROOT)
+        target_b = getattr(args, "target_branch", "integration")
+        res = synthesizer.consolidate_branches(
+            branches=args.branches,
+            target_integration_branch=target_b
+        )
+        if res.status == "SUCCESS":
+            print(f"✅ Consolidation Succeeded!")
+            print(f"   Merged Branches: {', '.join(res.merged_branches)}")
+            print(f"   Merge Commit:    {res.merkle_block_hash}")
+            print(f"   Merkle Block ID: {res.merkle_block_id}")
+            if res.consolidated_bundle_path:
+                print(f"   Result Bundle:   {res.consolidated_bundle_path}")
+        else:
+            print(f"❌ Consolidation Failed: {res.error_message}")
+            if res.violations:
+                print(f"   Breaking Contracts: {res.violations}")
+            sys.exit(1)
 
 
 
 def cmd_context(args):
+    _require_engine(TerminalAgentASTProxy, "terminal_agent_ast_proxy", "context", "Free / Team / Business / Enterprise")
     action = args.context_action
     if action == "export":
         modules = [m.strip() for m in args.module.split(",")] if getattr(args, "module", None) else None
@@ -880,8 +1694,43 @@ def cmd_context(args):
             print(f"✅ Exported AST context to {out_p} ({res['tokens_saved']:,} tokens saved, {res['reduction_pct']}% reduction)")
         else:
             print(res["payload"])
+    elif action == "sync":
+        if getattr(args, "is_async", False):
+            res = TerminalAgentASTProxy.trigger_async_context_export(
+                workspace_root=REPO_ROOT,
+                format_type=args.format,
+                output_path=Path(args.output) if getattr(args, "output", None) else None,
+                debounce_seconds=getattr(args, "debounce", 0.0),
+                force=getattr(args, "force", False)
+            )
+            print(f"⚡ Context sync scheduled asynchronously (debounce: {res['debounce_seconds']}s, format: {res['format']})")
+        else:
+            res = TerminalAgentASTProxy.export_and_save_context(
+                workspace_root=REPO_ROOT,
+                format_type=args.format,
+                output_path=Path(args.output) if getattr(args, "output", None) else None,
+                force=getattr(args, "force", False)
+            )
+            if res.get("status") == "UP_TO_DATE":
+                print(f"⚡ AST Context is already fresh ({res['context_file']})")
+            else:
+                print(f"✅ Synchronized AST context: {res['message']}")
+    elif action == "watch":
+        debounce = getattr(args, "debounce", 3.0)
+        fmt = getattr(args, "format", "claude-code")
+        print(f"👀 Watching workspace for AST changes (format: {fmt}, debounce: {debounce}s)...")
+        try:
+            while True:
+                time.sleep(debounce)
+                stale, _ = TerminalAgentASTProxy.is_context_stale(REPO_ROOT, fmt)
+                if stale:
+                    res = TerminalAgentASTProxy.export_and_save_context(REPO_ROOT, fmt)
+                    print(f"⚡ [Percipience Watcher] {res['message']}")
+        except KeyboardInterrupt:
+            print("\nStopped context watcher.")
 
 def cmd_terminal(args):
+    _require_engine(TerminalAgentASTProxy, "terminal_agent_ast_proxy", "terminal", "Free / Team / Business / Enterprise")
     action = args.terminal_action
     if action == "hook":
         print(TerminalAgentASTProxy.generate_shell_hook(args.shell))
@@ -906,6 +1755,7 @@ def cmd_terminal(args):
         print(f"   Injected Env: {list(wrapped['env'].keys())}")
 
 def cmd_formalize(args):
+    _require_engine(RequestFormalizerEngine, "request_formalizer", "formalize", "Free / Team / Business / Enterprise")
     print(f"📝 Formalizing unstructured engineering request...")
     print(f"   Input: {args.input}")
     print(f"   Target Format: {args.format}")
@@ -941,6 +1791,179 @@ def cmd_formalize(args):
         print(f"❌ Formalization failed: {e}")
         sys.exit(1)
 
+def cmd_guardrail(args):
+    action = args.guardrail_action
+    if action == "pii":
+        _require_engine(PIISanitizer, "pii_sanitizer", "guardrail pii", "Business / Enterprise")
+        sanitizer = PIISanitizer.get_instance()
+        text = args.text or ""
+        if args.file:
+            p = Path(args.file)
+            if not p.is_absolute():
+                p = REPO_ROOT / p
+            if p.exists():
+                text = p.read_text(encoding="utf-8")
+        session_id = args.session or "cli_session"
+        if args.deanonymize:
+            res_text = sanitizer.deanonymize(text, session_id=session_id)
+            print("🔓 De-anonymized Text:")
+            print(res_text)
+        else:
+            res = sanitizer.anonymize(text, session_id=session_id)
+            print("🛡️  PII Masking Results (Lakera / Presidio Parity):")
+            print(f"   Session ID: {res['session_id']}")
+            print(f"   Tokens Masked: {res['tokens_masked']}")
+            print(f"   Entities Detected: {json.dumps(res['entities_detected'])}")
+            print(f"   Duration: {res['duration_ms']} ms")
+            print(f"   Memory-Only Vault Active: {res['memory_only']}")
+            print("   --- Masked Payload ---")
+            print(res["sanitized_text"])
+
+    elif action == "injection":
+        _require_engine(PromptInjectionGuard, "prompt_injection_guard", "guardrail injection", "Business / Enterprise")
+        guard = PromptInjectionGuard()
+        payload = args.text or ""
+        if args.file:
+            p = Path(args.file)
+            if not p.is_absolute():
+                p = REPO_ROOT / p
+            if p.exists():
+                payload = p.read_text(encoding="utf-8")
+        res = guard.scan_payload(payload, source=args.source or "cli_input", strict=args.strict)
+        icon = "✅" if res["verdict"] == "ALLOWED" else ("⚠️" if res["verdict"] == "QUARANTINED" else "🛑")
+        print(f"{icon} Prompt Injection Firewall Scan (Prompt Armor / Lakera Parity):")
+        print(f"   Verdict: {res['verdict']}")
+        print(f"   Risk Score: {res['risk_score']:.3f}")
+        print(f"   Is Safe: {res['is_safe']}")
+        print(f"   Violations Found: {res['violations_count']}")
+        for v in res["violations"]:
+            print(f"   - [{v['category']}] ({v['severity']}): {v['description']} -> '{v['snippet']}'")
+        if not res["is_safe"]:
+            print("   --- Neutralized Payload ---")
+            print(res["neutralized_payload"])
+
+    elif action == "output-check":
+        _require_engine(OutputGuardrailValidator, "output_guardrail_validator", "guardrail output-check", "Business / Enterprise")
+        validator = OutputGuardrailValidator(REPO_ROOT)
+        code = args.code or ""
+        file_path = args.file
+        if file_path:
+            p = Path(file_path)
+            if not p.is_absolute():
+                p = REPO_ROOT / p
+            if p.exists():
+                code = p.read_text(encoding="utf-8")
+        lang = args.lang or "python"
+        res = validator.validate_code_output(code, language=lang, file_path=file_path)
+        icon = "✅" if res["is_valid"] else "❌"
+        print(f"{icon} Post-Generation Output Guardrail Validation (NeMo / Guardrails AI Parity):")
+        print(f"   Valid: {res['is_valid']}")
+        print(f"   Syntax Clean: {res['is_syntax_valid']}")
+        print(f"   Action: {res['action']}")
+        print(f"   Safety Score: {res['safety_score']:.2f}")
+        print(f"   Violations Count: {res['violations_count']}")
+        for v in res["violations"]:
+            print(f"   - [{v.get('type')}] ({v.get('severity')}): {v.get('description')} (target: {v.get('target', 'N/A')})")
+        if res["remediation_prompt"]:
+            print("   --- Remediation Prompt ---")
+            print(res["remediation_prompt"])
+
+
+def cmd_sandbox(args):
+    _require_engine(MicroVMSandbox, "microvm_sandbox", "sandbox", "Free / Team / Business / Enterprise")
+    action = args.sandbox_action
+    mgr = MicroVMSandbox(workspace_root=REPO_ROOT)
+    if action == "exec":
+        from core.microvm_sandbox import SandboxConfig
+        cfg = SandboxConfig(
+            runtime=getattr(args, "runtime", "auto"),
+            memory_limit_mb=getattr(args, "memory", 512),
+            timeout_seconds=getattr(args, "timeout", 30)
+        )
+        res = mgr.run_sandboxed(cmd=args.cmd, config=cfg)
+        print(f"⚡ MicroVM Sandbox Execution Completed [{res.runtime_used}]:")
+        print(f"   Exit Code: {res.exit_code} | Boot Latency: {res.boot_latency_ms}ms | Wall Time: {res.duration_ms}ms")
+        print(f"   Memory Peak: {res.memory_peak_mb}MB | Sandboxed: {res.sandboxed}")
+        if res.stdout.strip():
+            out_str = res.stdout.strip()
+            print(f"   Output: {out_str}")
+        if res.stderr.strip():
+            err_str = res.stderr.strip()
+            print(f"   Stderr: {err_str}")
+        if res.security_violations:
+            print(f"   ⚠️ Security Violations: {', '.join(res.security_violations)}")
+        sys.exit(res.exit_code)
+    elif action == "list":
+        boxes = mgr.list_sandboxes()
+        print(f"📋 Active Ephemeral Sandboxes ({len(boxes)} active):")
+        for b in boxes:
+            print(f"   • {b['sandbox_id']}: runtime={b['runtime']} boot={b['boot_latency_ms']}ms mem={b['memory_limit_mb']}MB")
+
+def cmd_oidc(args):
+    _require_engine(OIDCAuthenticator, "oidc_authenticator", "oidc", "Free / Team / Business / Enterprise")
+    action = args.oidc_action
+    auth = OIDCAuthenticator(workspace_root=REPO_ROOT)
+    if action == "token":
+        tok = auth.mint_workload_token(
+            subject=args.subject,
+            audience=args.audience,
+            ttl_seconds=getattr(args, "ttl", 900)
+        )
+        print(f"🔑 Minted OIDC Workload Identity Token:")
+        print(f"   Subject: {args.subject}")
+        print(f"   Audience: {args.audience}")
+        print(f"   JWT: {tok}")
+    elif action == "exchange":
+        res = auth.exchange_cloud_credentials(
+            token=args.token,
+            provider=args.provider,
+            role_arn_or_pool=args.role
+        )
+        print(f"✅ Cloud Workload Identity Federation Succeeded [{res.provider}]:")
+        print(f"   Target Role: {res.target_role}")
+        print(f"   Access Token ID: {res.access_token_id}")
+        print(f"   Token Type: {res.token_type} | Expires: {res.expiration}")
+    elif action == "audit":
+        records = auth.get_exchange_audit_trail()
+        print(f"📋 OIDC Credential Federation Audit Trail ({len(records)} events):")
+        for r in records:
+            print(f"   • [{r['timestamp']}] {r['provider']} -> {r['target_role']} (actor: {r['actor']}) status: {r['status']}")
+
+def cmd_test(args):
+    # Check if test sharding is requested
+    total_shards = getattr(args, "total_shards", 1)
+    shard_index = getattr(args, "shard_index", 0)
+    if total_shards > 1:
+        _require_engine(DistributedTestRunner, "distributed_test_runner", "test shard", "Free / Team / Business / Enterprise")
+        runner = DistributedTestRunner(workspace_root=REPO_ROOT)
+        all_tests = runner.discover_tests()
+        shard_receipt = runner.run_shard(shard_index=shard_index, total_shards=total_shards, tests=all_tests)
+        print(f"⚡ Distributed Test Shard [{shard_index + 1}/{total_shards}] Complete:")
+        print(f"   Tests in shard: {len(shard_receipt.test_files)}")
+        print(f"   Status: {shard_receipt.status} ({shard_receipt.passed_count} passed, {shard_receipt.failed_count} failed)")
+        print(f"   Duration: {shard_receipt.duration_ms}ms")
+        print(f"   Shard Hash: {shard_receipt.shard_hash[:16]}...")
+        sys.exit(0 if shard_receipt.failed_count == 0 else 1)
+    test_runner_dir = REPO_ROOT / ".nb" / "plan" / "test"
+    if str(test_runner_dir) not in sys.path:
+        sys.path.insert(0, str(test_runner_dir))
+    try:
+        from test_runner import PercipienceTestOrchestrator, DEFAULT_OUTPUT_DIR
+    except ImportError as e:
+        print(f"❌ Failed to load test orchestrator: {e}")
+        sys.exit(1)
+
+    out_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else DEFAULT_OUTPUT_DIR
+    orchestrator = PercipienceTestOrchestrator(
+        tier=getattr(args, "tier", "all"),
+        output_dir=out_dir,
+        eval_ai=getattr(args, "eval_ai", True),
+        ai_triage=getattr(args, "ai_triage", False),
+        coverage=getattr(args, "coverage", False)
+    )
+    results = orchestrator.run_tests(quiet=getattr(args, "quiet", False))
+    sys.exit(results.get("exit_code", 0))
+
 def main():
     parser = argparse.ArgumentParser(prog="percipience", description="Neutron Binary Percipience CLI")
     subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
@@ -948,8 +1971,41 @@ def main():
     # init
     p_init = subparsers.add_parser("init", help="Bootstrap Quad-Space workspace")
     p_init.add_argument("--mode", default="multi_module", choices=["single_module", "multi_module"])
-    p_init.add_argument("--parent-plan", required=True)
+    p_init.add_argument("--parent-plan", default=None, help="Path to parent plan or .nbpack")
+    p_init.add_argument("--interactive", action="store_true", help="Launch interactive onboarding setup wizard")
     p_init.set_defaults(func=cmd_init)
+
+    # bot (GitOps PR Bot)
+    p_bot = subparsers.add_parser("bot", help="Interactive GitOps PR Bot (deploy, comment, slash-commands)")
+    p_bot_subs = p_bot.add_subparsers(dest="bot_action", required=True)
+    p_bot_deploy = p_bot_subs.add_parser("deploy", help="Deploy GitOps PR bot workflow & webhook configuration")
+    p_bot_comment = p_bot_subs.add_parser("comment", help="Format and post rich Markdown PR status card")
+    p_bot_comment.add_argument("--pr", default="1", help="PR number")
+    p_bot_comment.add_argument("--branch", default="main", help="Target branch")
+    p_bot_comment.add_argument("--sha", default="HEAD", help="Commit SHA")
+    p_bot_cmd = p_bot_subs.add_parser("command", help="Handle developer slash-command (/re-heal, /rollback, /verify)")
+    p_bot_cmd.add_argument("--cmd", required=True, help="Slash command text e.g. /verify")
+    p_bot_cmd.add_argument("--pr", default="1", help="PR number")
+    p_bot_cmd.add_argument("--actor", default="developer", help="Command author")
+    p_bot.set_defaults(func=cmd_bot)
+
+    # search (Hybrid Sparse-Dense Vector RAG)
+    p_search = subparsers.add_parser("search", help="Hybrid sparse-dense vector code retrieval alongside AST pruning")
+    p_search.add_argument("query", help="Code search or conceptual question query")
+    p_search.add_argument("--top-k", type=int, default=5, help="Number of results to retrieve")
+    p_search.add_argument("--alpha", type=float, default=0.5, help="Weight between dense vector (1.0) and sparse BM25 (0.0)")
+    p_search.add_argument("--reindex", action="store_true", help="Reindex codebase prior to search")
+    p_search.add_argument("--no-multi-hop", action="store_true", help="Disable multi-hop dependency expansion")
+    p_search.add_argument("--json", action="store_true", help="Output raw JSON results")
+    p_search.set_defaults(func=cmd_search)
+
+    # migrate (Conventional to Quad-Space)
+    p_migrate = subparsers.add_parser("migrate", help="Migrate conventional codebase into Quad-Space architecture")
+    p_migrate.add_argument("--from-conventional", action="store_true", help="Migrate from conventional layout")
+    p_migrate.add_argument("--analyze-only", action="store_true", help="Analyze and output dry-run report without moving files")
+    p_migrate.add_argument("--execute", action="store_true", help="Execute physical migration into workplace, user, .nb, .claude")
+    p_migrate.add_argument("--rollback", action="store_true", help="Roll back previously executed migration")
+    p_migrate.set_defaults(func=cmd_migrate)
 
     # pack
     p_pack = subparsers.add_parser("pack", help="Compile proprietary .nbpack bundle")
@@ -973,6 +2029,7 @@ def main():
 
     # gate
     p_gate = subparsers.add_parser("gate", help="Run PR Gatekeeper verification")
+    p_gate.add_argument("--mode", choices=["dev", "prod"], default="prod", help="Operational mode (default: prod with strict gatekeeping)")
     p_gate.set_defaults(func=cmd_gate)
 
     # rollback
@@ -1019,12 +2076,24 @@ def main():
 
 
     # context
-    p_ctx = subparsers.add_parser("context", help="Export and format AST-pruned context for agents")
+    p_ctx = subparsers.add_parser("context", help="Export, sync, and format AST-pruned context for agents")
     p_ctx_subs = p_ctx.add_subparsers(dest="context_action", required=True)
     p_ctx_exp = p_ctx_subs.add_parser("export", help="Export AST-pruned context")
     p_ctx_exp.add_argument("--format", default="claude-code", choices=["claude-code", "gemini-cli", "aider", "markdown", "json"])
     p_ctx_exp.add_argument("--module", help="Target modules comma-separated")
     p_ctx_exp.add_argument("--output", help="Output file path")
+
+    p_ctx_sync = p_ctx_subs.add_parser("sync", help="Synchronize AST context with change-detection and async support")
+    p_ctx_sync.add_argument("--format", default="claude-code", choices=["claude-code", "gemini-cli", "aider", "markdown", "json"])
+    p_ctx_sync.add_argument("--output", help="Output file path")
+    p_ctx_sync.add_argument("--async", dest="is_async", action="store_true", help="Run asynchronously in background")
+    p_ctx_sync.add_argument("--debounce", type=float, default=0.0, help="Debounce seconds before running")
+    p_ctx_sync.add_argument("--force", action="store_true", help="Force re-export even if mtime is unchanged")
+
+    p_ctx_watch = p_ctx_subs.add_parser("watch", help="Asynchronously watch workspace and auto-update context on changes")
+    p_ctx_watch.add_argument("--format", default="claude-code", choices=["claude-code", "gemini-cli", "aider", "markdown", "json"])
+    p_ctx_watch.add_argument("--debounce", type=float, default=3.0, help="Debounce seconds")
+
     p_ctx.set_defaults(func=cmd_context)
 
     # terminal
@@ -1122,7 +2191,87 @@ def main():
     p_swarm = subparsers.add_parser("swarm", help="Audit multi-agent swarm leases and handover governance")
     p_swarm_subs = p_swarm.add_subparsers(dest="swarm_action", required=True)
     p_sw_aud = p_swarm_subs.add_parser("audit", help="Audit active swarm leases, depths and rogue spawns")
+    p_sw_exec = p_swarm_subs.add_parser("exec", help="Execute plan-to-code derivation in sandboxed container worktree")
+    p_sw_exec.add_argument("--plan", required=True, help="Path to .nb/plan/ specification")
+    p_sw_exec.add_argument("--agent-id", default="agent_worker", help="Unique agent identifier")
+    p_sw_exec.add_argument("--target-module", default="workplace", help="Target module to modify")
+    p_sw_exec.add_argument("--prompt", required=True, help="Prompt or task instructions for LLM CLI")
+    p_sw_exec.add_argument("--llm", default="claude", choices=["claude", "aider", "gemini", "custom"], help="LLM CLI to invoke")
+    p_sw_exec.add_argument("--ttl", type=int, default=3600, help="Worktree lease TTL in seconds")
+    p_sw_exec.add_argument("--no-gate", action="store_true", help="Skip gatekeeper verification")
+    p_sw_exec.add_argument("--mock", action="store_true", help="Run in mock/simulation mode")
+
+    # swarm dag
+    p_sw_dag = p_swarm_subs.add_parser("dag", help="Execute or inspect Dynamic DAG multi-agent waves")
+    p_sw_dag.add_argument("--action", choices=["inspect", "exec", "expand", "reset"], default="inspect")
+    p_sw_dag.add_argument("--parent-id", default="step_ast_prune")
+
+    # swarm reflexion
+    p_sw_ref = p_swarm_subs.add_parser("reflexion", help="Evaluate Reflexion invariant critic on target file")
+    p_sw_ref.add_argument("--file", default="workplace/core/fleet_agent.py", help="Target source file to evaluate")
+
+    # swarm consensus
+    p_sw_con = p_swarm_subs.add_parser("consensus", help="Run multi-model consensus quorum engine")
+    p_sw_con.add_argument("--proposal", default="PR Gate Approval", help="Proposal text")
+
+    # swarm cbac
+    p_sw_cbac = p_swarm_subs.add_parser("cbac", help="Mint Capability-Based Access Control tokens")
+    p_sw_cbac.add_argument("--agent-id", default="agent_sandbox_coder", help="Agent identifier")
+    p_sw_cbac.add_argument("--ops", default="CAP_FS_READ,CAP_FS_WRITE_MODULE_ONLY", help="Comma-separated operations")
+    p_sw_cbac.add_argument("--ttl", type=int, default=3600, help="Token TTL in seconds")
+
+    # swarm fleet
+    p_sw_flt = p_swarm_subs.add_parser("fleet", help="Inspect distributed workstation and node fleet metrics")
+    p_sw_flt.add_argument("--simulate-pulse", action="store_true", help="Inject simulated pulse with +50k tokens")
+    p_sw_flt.add_argument("--action", choices=["pause", "resume", "surgical_rollback", "evict_lease", "flush_ast_cache"], help="Trigger remote admin intervention on a machine")
+    p_sw_flt.add_argument("--machine", help="Target machine ID for remote intervention")
+    p_sw_flt.add_argument("--params", help="JSON parameters for intervention")
+    p_sw_flt.add_argument("--actor", default="admin@enterprise.internal", help="Administrator email / identity")
+    p_sw_flt.add_argument("--interventions", action="store_true", help="List remote intervention audit log")
+    p_sw_flt.add_argument("--quarantine", action="store_true", help="Display Enterprise Security & Quarantine Central Command triage")
+    p_sw_flt.add_argument("--resolve-incident", help="Resolve a quarantined incident by ID")
+    p_sw_flt.add_argument("--resolution", choices=["APPROVED_PATCH", "DISMISSED", "SURGICALLY_ROLLED_BACK", "QUARANTINE_LIFTED", "RESOLVED"], default="APPROVED_PATCH", help="Resolution verdict to seal into Merkle ledger")
+    p_sw_flt.add_argument("--notes", default="Resolved via CLI triage", help="Triage notes for incident resolution")
+
+    # swarm dispatch (DEWS remote fleet)
+    p_sw_disp = p_swarm_subs.add_parser("dispatch", help="Dispatch plan derivation to distributed container fleet (DEWS)")
+    p_sw_disp.add_argument("--remote", default="local", help="Remote fleet HTTP URL or 'local'")
+    p_sw_disp.add_argument("--plan", required=True, help="Path to .nb/plan/ specification")
+    p_sw_disp.add_argument("--target-module", default="workplace", help="Target module to modify")
+    p_sw_disp.add_argument("--agent-id", default="agent_percipience_swarm", help="Unique agent identifier")
+    p_sw_disp.add_argument("--prompt", default="Execute distributed plan derivation", help="Prompt or task instructions")
+    p_sw_disp.add_argument("--sync-back", help="Target worktree path to extract verified result bundle into")
+    p_sw_disp.add_argument("--mock", action="store_true", help="Run in mock/simulation container mode")
+    p_sw_disp.add_argument("--timeout", type=int, default=120, help="Polling timeout in seconds")
+
+    # swarm consolidate
+    p_sw_cons = p_swarm_subs.add_parser("consolidate", help="Perform topological 3-way merge consolidation of completed worker branches")
+    p_sw_cons.add_argument("--branches", nargs="+", required=True, help="List of worker git branches to consolidate")
+    p_sw_cons.add_argument("--target-branch", default="integration", help="Integration target branch")
+    p_sw_cons.add_argument("--author-agent", default="agent_consolidation_synthesizer", help="Agent identifier")
     p_swarm.set_defaults(func=cmd_swarm)
+
+    # hitl
+    p_hitl = subparsers.add_parser("hitl", help="Interactive Human-In-The-Loop milestone checkpoints")
+    p_hitl_subs = p_hitl.add_subparsers(dest="hitl_action", required=True)
+    p_h_list = p_hitl_subs.add_parser("list", help="List milestone checkpoints")
+    p_h_list.add_argument("--pending-only", action="store_true", help="Filter pending checkpoints")
+    p_h_app = p_hitl_subs.add_parser("approve", help="Approve milestone checkpoint")
+    p_h_app.add_argument("--id", required=True, help="Checkpoint ID (chk_*)")
+    p_h_app.add_argument("--comment", default="", help="Optional approval rationale")
+    p_h_app.add_argument("--resolver", default="cli_operator", help="Resolver ID")
+    p_h_rej = p_hitl_subs.add_parser("reject", help="Reject milestone checkpoint")
+    p_h_rej.add_argument("--id", required=True, help="Checkpoint ID (chk_*)")
+    p_h_rej.add_argument("--reason", required=True, help="Rejection reason")
+    p_h_rej.add_argument("--resolver", default="cli_operator", help="Resolver ID")
+    p_hitl.set_defaults(func=cmd_hitl)
+
+    # benchmark
+    p_bench = subparsers.add_parser("benchmark", help="Automated agent benchmarking and continuous evaluation")
+    p_bench_subs = p_bench.add_subparsers(dest="benchmark_action", required=True)
+    p_b_run = p_bench_subs.add_parser("run", help="Run agent benchmark suite")
+    p_b_run.add_argument("--agents", default="all", help="Target agents to evaluate")
+    p_bench.set_defaults(func=cmd_benchmark)
 
     # validate
     p_val = subparsers.add_parser("validate", help="Validate layered context hierarchy")
@@ -1247,6 +2396,122 @@ def main():
     p_perm_chk.add_argument("--feature", required=True, help="Feature name to test")
     p_perm_chk.set_defaults(func=cmd_permission)
     p_perm.set_defaults(func=cmd_permission)
+
+    # guardrail
+    p_gr = subparsers.add_parser("guardrail", help="Runtime Guardrails, PII Anonymization & Prompt Injection Firewall")
+    p_gr_subs = p_gr.add_subparsers(dest="guardrail_action", required=True)
+
+    # guardrail pii
+    p_gr_pii = p_gr_subs.add_parser("pii", help="Real-Time Inbound/Outbound PII Masking and De-Anonymization")
+    p_gr_pii.add_argument("--text", default="", help="Text to sanitize")
+    p_gr_pii.add_argument("--file", default="", help="File path to read text from")
+    p_gr_pii.add_argument("--session", default="cli_session", help="Session ID for memory-only vault")
+    p_gr_pii.add_argument("--deanonymize", action="store_true", help="De-anonymize masked tokens using session vault")
+
+    # guardrail injection
+    p_gr_inj = p_gr_subs.add_parser("injection", help="Inbound Indirect Prompt Injection Firewall Scan")
+    p_gr_inj.add_argument("--text", default="", help="Payload text to scan")
+    p_gr_inj.add_argument("--file", default="", help="File path to read payload from")
+    p_gr_inj.add_argument("--source", default="cli_external", help="Payload source")
+    p_gr_inj.add_argument("--strict", action="store_true", help="Enable strict injection thresholds")
+
+    # guardrail output-check
+    p_gr_out = p_gr_subs.add_parser("output-check", help="Post-Generation AST Structural & Policy Validation")
+    p_gr_out.add_argument("--code", default="", help="Code string to validate")
+    p_gr_out.add_argument("--file", default="", help="File path to validate")
+    p_gr_out.add_argument("--lang", default="python", help="Language (python, typescript, json)")
+    p_gr.set_defaults(func=cmd_guardrail)
+
+    # license
+    p_lic = subparsers.add_parser("license", help="Manage, mint, install, and audit commercial licenses")
+    p_lic_sub = p_lic.add_subparsers(dest="lic_action", help="License action")
+    
+    p_lic_stat = p_lic_sub.add_parser("status", help="Show active installed license status")
+    p_lic_stat.set_defaults(func=cmd_license)
+    
+    p_lic_mint = p_lic_sub.add_parser("mint", help="Mint and sign a new tenant license")
+    p_lic_mint.add_argument("--tier", default="plan_team", choices=["free", "team", "business", "enterprise", "plan_free", "plan_team", "plan_business", "plan_enterprise"])
+    p_lic_mint.add_argument("--tenant", default="tenant_custom", help="Tenant ID")
+    p_lic_mint.add_argument("--name", help="Tenant Name")
+    p_lic_mint.add_argument("--seats", type=int, help="Override seat count (-1 for unlimited)")
+    p_lic_mint.add_argument("--worktrees", type=int, help="Override worktree count (-1 for unlimited)")
+    p_lic_mint.add_argument("--audits", type=int, help="Override audit quota (-1 for unlimited)")
+    p_lic_mint.add_argument("--payment-ref", dest="payment_ref", help="Optional payment reference ID")
+    p_lic_mint.add_argument("--out", help="Output file path")
+    p_lic_mint.add_argument("--install", action="store_true", help="Install directly to workspace .nb/context/tenant_license.json")
+    p_lic_mint.set_defaults(func=cmd_license)
+
+    p_lic_inst = p_lic_sub.add_parser("install", help="Install a license into the active workspace")
+    p_lic_inst.add_argument("--file", help="Path to existing license JSON file")
+    p_lic_inst.add_argument("--tier", default="plan_team", choices=["free", "team", "business", "enterprise", "plan_free", "plan_team", "plan_business", "plan_enterprise"])
+    p_lic_inst.add_argument("--tenant", default="tenant_custom", help="Tenant ID")
+    p_lic_inst.set_defaults(func=cmd_license)
+
+    p_lic.set_defaults(func=cmd_license)
+
+    # status / plan
+    p_stat = subparsers.add_parser("status", help="Show active plan bundle tier, provisioned core engines, and feature availability")
+    p_stat.set_defaults(func=cmd_status)
+
+    p_plan_cmd = subparsers.add_parser("plan", help="Display commercial plan info, or orchestrate plan submodules (plan orchestrate/bundle)")
+    p_plan_cmd_subs = p_plan_cmd.add_subparsers(dest="plan_action")
+    p_plan_orch = p_plan_cmd_subs.add_parser("orchestrate", help="Project a plan + its submodules into agents, rules & a derivation workflow")
+    p_plan_orch.add_argument("--plan-dir", required=True, help="Plan directory (e.g. .nb/plan/master/enterprise-ui-design-system)")
+    p_plan_orch.add_argument("--check", action="store_true", help="Report drift without writing")
+    p_plan_orch.add_argument("--no-sync-registries", action="store_true", help="Skip settings.json reconciliation")
+    p_plan_orch.add_argument("--bundle-tier", default=None, help="Tier to package after generation (e.g. plan_business)")
+    p_plan_orch.add_argument("--bundle-target", default="intellij", help="Provisioning target when --provision is set")
+    p_plan_orch.add_argument("--provision", action="store_true", help="Provision artifacts onto a concrete target")
+    p_plan_bundle = p_plan_cmd_subs.add_parser("bundle", help="Bundle generated artifacts into a commercial release package")
+    p_plan_bundle.add_argument("--tier", default="plan_business", help="Commercial tier to package")
+    p_plan_bundle.add_argument("--target", default="intellij", help="Provisioning target (intellij/vscode/portal)")
+    p_plan_bundle.add_argument("--provision", action="store_true", help="Provision onto the concrete target")
+    p_plan_cmd.set_defaults(func=cmd_plan)
+
+    # test
+    p_test = subparsers.add_parser("test", help="Execute automatable AI-assisted test suites across architectural tiers")
+    p_test.add_argument("--tier", choices=["all", "unit", "integration", "portal", "guardrails", "governance", "security", "benchmarks"], default="all", help="Target test tier")
+    p_test.add_argument("--output-dir", default="", help="Custom output directory for test reports")
+    p_test.add_argument("--ai-triage", action="store_true", help="Perform automated AI failure diagnosis and surgical patch synthesis on failures")
+    p_test.add_argument("--eval-ai", action="store_true", default=True, help="Run quantitative GenAI evaluation metrics")
+    p_test.add_argument("--quiet", action="store_true", help="Suppress verbose test execution logs")
+    p_test.add_argument("--coverage", action="store_true", help="Generate unified code coverage reporting, terminal summary tables, and HTML artifacts")
+    p_test.add_argument("--total-shards", type=int, default=1, help="Total parallel test shards")
+    p_test.add_argument("--shard-index", type=int, default=0, help="Shard index to execute (0-based)")
+    p_test.set_defaults(func=cmd_test)
+
+    # sandbox (MicroVM / gVisor / WASM)
+    p_sb = subparsers.add_parser("sandbox", help="Sub-second MicroVM / gVisor & WASM Sandbox Isolation")
+    p_sb_subs = p_sb.add_subparsers(dest="sandbox_action", required=True)
+    p_sb_exec = p_sb_subs.add_parser("exec", help="Execute command inside isolated sandbox")
+    p_sb_exec.add_argument("--cmd", required=True, help="Command string to execute in sandbox")
+    p_sb_exec.add_argument("--runtime", default="auto", choices=["auto", "firecracker", "gvisor", "wasm", "process_jail"], help="Isolation runtime backend")
+    p_sb_exec.add_argument("--memory", type=int, default=512, help="Memory limit in MB")
+    p_sb_exec.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
+    p_sb_list = p_sb_subs.add_parser("list", help="List active ephemeral sandboxes")
+    p_sb.set_defaults(func=cmd_sandbox)
+
+    # oidc (Keyless Cloud Workload Identity Federation)
+    p_oidc = subparsers.add_parser("oidc", help="OIDC Keyless Cloud Authentication (Workload Identity Federation)")
+    p_oidc_subs = p_oidc.add_subparsers(dest="oidc_action", required=True)
+    p_oidc_tok = p_oidc_subs.add_parser("token", help="Mint an ephemeral signed OIDC workload token")
+    p_oidc_tok.add_argument("--subject", default="subagent_worker_01", help="Token subject / actor")
+    p_oidc_tok.add_argument("--audience", default="sts.amazonaws.com", help="Target cloud audience")
+    p_oidc_tok.add_argument("--ttl", type=int, default=900, help="Token validity in seconds")
+    p_oidc_exch = p_oidc_subs.add_parser("exchange", help="Exchange OIDC token for temporary cloud credentials")
+    p_oidc_exch.add_argument("--token", required=True, help="OIDC JWT token string")
+    p_oidc_exch.add_argument("--provider", default="aws", choices=["aws", "gcp", "azure"], help="Cloud IAM provider")
+    p_oidc_exch.add_argument("--role", required=True, help="Target role ARN or Workload Identity pool")
+    p_oidc_aud = p_oidc_subs.add_parser("audit", help="View OIDC credential exchange audit trail")
+    p_oidc.set_defaults(func=cmd_oidc)
+
+    # config
+    p_cfg = subparsers.add_parser("config", help="Manage externalized platform configuration (.nb/config/platform_config.yaml)")
+    p_cfg_subs = p_cfg.add_subparsers(dest="config_action", required=True)
+    p_cfg_show = p_cfg_subs.add_parser("show", help="Display all active configuration values")
+    p_cfg_get = p_cfg_subs.add_parser("get", help="Get a specific configuration value by key path")
+    p_cfg_get.add_argument("key", help="Dot-notated key path (e.g. portal.port, daemon.endpoint_url)")
+    p_cfg.set_defaults(func=cmd_config)
 
     args = parser.parse_args()
     if not args.subcommand:

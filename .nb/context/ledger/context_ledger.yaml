@@ -187,6 +187,14 @@ ledger_chain:
   current_block_hash: a29e7eb7b1205bf4b380657170623fc8a7b8515386d9a71aef5001fb339e1a20
   action: AUTONOMOUS_PIPELINE_autocicd_20261006_143612
   block_hash: a29e7eb7b1205bf4b380657170623fc8a7b8515386d9a71aef5001fb339e1a20
+- block_id: 23
+  block_type: STATE_UPDATE
+  prev_block_hash: a29e7eb7b1205bf4b380657170623fc8a7b8515386d9a71aef5001fb339e1a20
+  timestamp: '2026-11-18T21:57:31.896370+00:00'
+  merkle_root: def1281358927f41bbdb5c86c7aa2e8ead7f5aa3a756a0eeed5fedd1f34e7e5b
+  current_block_hash: 4dfb51d807f5244dd82715836dab4fc6c891b1c5178f9065aef3daa8ac6b725d
+  action: HANDOFF_CONFIRMED:agent_ast_optimizer->agent_dependency_cve_sentinel:wf_pr_gatekeeper
+  block_hash: 4dfb51d807f5244dd82715836dab4fc6c891b1c5178f9065aef3daa8ac6b725d
 recovery_points:
 - id: RP_GENESIS_000
   module_scope: global_system
@@ -194,5 +202,11 @@ recovery_points:
   timestamp: '2026-10-04T09:47:34.881381Z'
   status: VERIFIED
   description: Genesis bootstrap of Free Community Plan workspace
+- id: RP_ho_replay_1795039051825
+  module_scope: global_system
+  git_commit: HEAD
+  timestamp: '2026-11-18T21:57:31.896370+00:00'
+  status: VERIFIED
+  description: HANDOFF_CONFIRMED:agent_ast_optimizer->agent_dependency_cve_sentinel:wf_pr_gatekeeper
 quarantined_tests: []
 poisoning_incidents: []

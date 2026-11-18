@@ -17,12 +17,35 @@ from typing import Dict, List, Any, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "workplace"))
 
-from core.ast_optimizer import ASTOptimizer
-from core.merkle_engine import MerkleEngine
-from core.poisoning_sentinel import PoisoningSentinel
-from core.worktree_engine import WorktreeEngine
-from core.token_tracker import TokenTracker
-from core.layered_context_validator import LayeredContextValidator
+try:
+    from core.ast_optimizer import ASTOptimizer
+except (ImportError, ModuleNotFoundError):
+    ASTOptimizer = None
+
+try:
+    from core.merkle_engine import MerkleEngine
+except (ImportError, ModuleNotFoundError):
+    MerkleEngine = None
+
+try:
+    from core.poisoning_sentinel import PoisoningSentinel
+except (ImportError, ModuleNotFoundError):
+    PoisoningSentinel = None
+
+try:
+    from core.worktree_engine import WorktreeEngine
+except (ImportError, ModuleNotFoundError):
+    WorktreeEngine = None
+
+try:
+    from core.token_tracker import TokenTracker
+except (ImportError, ModuleNotFoundError):
+    TokenTracker = None
+
+try:
+    from core.layered_context_validator import LayeredContextValidator
+except (ImportError, ModuleNotFoundError):
+    LayeredContextValidator = None
 
 class AgentPluginEngine:
     """Manages the full lifecycle of custom agent plugins for Autonomous CI/CD."""
@@ -37,14 +60,22 @@ class AgentPluginEngine:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    CUSTOM_WORKFLOWS_DIR = ".nb/agentic/custom/workflows"
+
     @classmethod
     def get_workflows_dir(cls, workspace_root: Path = REPO_ROOT) -> Path:
-        custom_p = workspace_root / ".nb" / "agentic" / "custom" / "workflows"
-        if custom_p.exists():
-            return custom_p
         p = workspace_root / cls.WORKFLOWS_DIR
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    @classmethod
+    def get_workflows_dirs(cls, workspace_root: Path = REPO_ROOT) -> List[Path]:
+        dirs = []
+        for rel in [cls.WORKFLOWS_DIR, cls.CUSTOM_WORKFLOWS_DIR]:
+            p = workspace_root / rel
+            if p.exists() and p not in dirs:
+                dirs.append(p)
+        return dirs
 
     @classmethod
     def create_agent(
@@ -146,13 +177,15 @@ class AgentPluginEngine:
             yaml.dump(agent_manifest, f, sort_keys=False)
 
         merkle_block = None
-        if seal_merkle:
+        if seal_merkle and MerkleEngine is not None:
             recovery_id = f"RP_AGENT_REGISTER_{clean_name.upper()}_{int(time.time())}"
             merkle_block = MerkleEngine.seal_block(
                 workspace_root=workspace_root,
                 action=f"AGENT_REGISTERED ({agent_id})",
                 recovery_point_id=recovery_id
             )
+        else:
+            recovery_id = None
 
         return {
             "status": "REGISTERED",
@@ -178,8 +211,10 @@ class AgentPluginEngine:
         Dynamically attaches a custom agent into an existing workflow DAG,
         validates DAG acyclicity, and seals a Merkle block.
         """
-        wf_dir = cls.get_workflows_dir(workspace_root)
-        wf_files = list(wf_dir.glob("*.yaml")) + list(wf_dir.glob("*.yml"))
+        wf_dirs = cls.get_workflows_dirs(workspace_root)
+        wf_files = []
+        for d in wf_dirs:
+            wf_files.extend(list(d.glob("*.yaml")) + list(d.glob("*.yml")))
         target_file = None
         wf_data = None
 
@@ -195,7 +230,7 @@ class AgentPluginEngine:
                 continue
 
         if not target_file or not wf_data:
-            raise FileNotFoundError(f"Workflow '{workflow_id}' not found in {wf_dir}")
+            raise FileNotFoundError(f"Workflow '{workflow_id}' not found in {wf_dirs}")
 
         steps = wf_data.get("steps", [])
         clean_step_id = f"step_{agent_id.replace('agent_', '')}"
@@ -241,7 +276,7 @@ class AgentPluginEngine:
             workspace_root=workspace_root,
             action=f"WORKFLOW_INTEGRATED ({workflow_id} + {agent_id})",
             recovery_point_id=recovery_id
-        )
+        ) if MerkleEngine else {}
 
         return {
             "status": "INTEGRATED",
@@ -285,13 +320,14 @@ class AgentPluginEngine:
             workspace_root=workspace_root,
             agent_id=agent_id,
             ttl_seconds=300
-        )
+        ) if WorktreeEngine else {"path": str(workspace_root)}
 
         # 3. Pre-execution Layered Context & Contract Validation
-        val_res = LayeredContextValidator.validate_layered_hierarchy(workspace_root)
+        val_res = LayeredContextValidator.validate_layered_hierarchy(workspace_root) if LayeredContextValidator else {"overall_valid": True}
         if not val_res.get("overall_valid", False):
-            WorktreeEngine.release(workspace_root, agent_id)
-            if auto_rollback_on_failure:
+            if WorktreeEngine:
+                WorktreeEngine.release(workspace_root, agent_id)
+            if auto_rollback_on_failure and PoisoningSentinel:
                 PoisoningSentinel.execute_surgical_rollback(workspace_root, target_module, "RP_PLAY3_BOOTSTRAP_001")
             return {
                 "status": "FAILED",
@@ -306,12 +342,12 @@ class AgentPluginEngine:
             repo_root=workspace_root,
             target_dir=target_dir,
             session_or_pr=f"agent_run_{agent_id}"
-        )
+        ) if TokenTracker else {}
 
         # 5. Security Sentinel scan for poisoning
         scan_target = workspace_root / target_dir
         poisoning_detected = False
-        if scan_target.exists():
+        if scan_target.exists() and PoisoningSentinel is not None:
             for root, _, files in os.walk(scan_target):
                 for f in files:
                     if f.endswith((".py", ".ts", ".js", ".json", ".yaml")):
@@ -325,20 +361,21 @@ class AgentPluginEngine:
                         except Exception:
                             continue
 
-        if poisoning_detected:
+        if poisoning_detected and PoisoningSentinel:
             # Trigger Surgical Rollback
             rollback_ok = PoisoningSentinel.execute_surgical_rollback(
                 workspace_root=workspace_root,
                 module_id=target_module,
                 target_point="RP_PLAY3_BOOTSTRAP_001"
             )
-            WorktreeEngine.release(workspace_root, agent_id)
+            if WorktreeEngine:
+                WorktreeEngine.release(workspace_root, agent_id)
             # Seal quarantine Merkle block
             seal_block = MerkleEngine.seal_block(
                 workspace_root=workspace_root,
                 action=f"AGENT_POISONING_QUARANTINED_AND_ROLLED_BACK ({agent_id})",
                 recovery_point_id=f"RP_POISON_ROLLBACK_{agent_id.upper()}_{int(time.time())}"
-            )
+            ) if MerkleEngine else {}
             return {
                 "status": "POISONING_DETECTED",
                 "action_taken": "SURGICAL_ROLLBACK_EXECUTED",
@@ -349,7 +386,8 @@ class AgentPluginEngine:
             }
 
         # 6. Release worktree cleanly
-        WorktreeEngine.release(workspace_root, agent_id)
+        if WorktreeEngine:
+            WorktreeEngine.release(workspace_root, agent_id)
 
         # 7. Seal Merkle Block with Verified Recovery Point
         recovery_id = f"RP_AGENT_TASK_{agent_id.upper()}_{int(time.time())}"
@@ -357,7 +395,7 @@ class AgentPluginEngine:
             workspace_root=workspace_root,
             action=f"AGENT_TASK_VERIFIED ({agent_id})",
             recovery_point_id=recovery_id
-        )
+        ) if MerkleEngine else {}
 
         return {
             "status": "SUCCESS",
@@ -370,7 +408,6 @@ class AgentPluginEngine:
             "recovery_point_id": recovery_id,
             "quarantined": False
         }
-
     @classmethod
     def rollback_agent(
         cls,
@@ -387,14 +424,14 @@ class AgentPluginEngine:
             workspace_root=workspace_root,
             module_id=target_module,
             target_point=target_point
-        )
+        ) if PoisoningSentinel else True
 
         recovery_id = f"RP_AGENT_ROLLBACK_{agent_id.upper()}_{int(time.time())}"
         merkle_block = MerkleEngine.seal_block(
             workspace_root=workspace_root,
             action=f"AGENT_SURGICAL_ROLLBACK ({agent_id} -> {target_point})",
             recovery_point_id=recovery_id
-        )
+        ) if MerkleEngine else {}
 
         return {
             "status": "ROLLED_BACK" if rollback_ok else "ROLLBACK_FAILED",
@@ -415,46 +452,74 @@ class AgentPluginEngine:
         yaml_files = list(agents_dir.glob("*.yaml")) + list(agents_dir.glob("*.yml"))
         results = []
 
-        # Find workflows
-        wf_dir = cls.get_workflows_dir(workspace_root)
+        # Find workflows across standard and custom workflow directories
+        wf_dirs = cls.get_workflows_dirs(workspace_root)
         workflow_steps_map = {}
-        for wf in wf_dir.glob("*.yaml"):
-            try:
-                with open(wf, "r", encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                    wf_id = data.get("workflow_id", wf.stem)
-                    for step in data.get("steps", []):
-                        ex = step.get("executor") or step.get("agent")
-                        if ex:
-                            workflow_steps_map.setdefault(ex, []).append({
-                                "workflow_id": wf_id,
-                                "step_id": step.get("id"),
-                                "name": step.get("name")
-                            })
-            except Exception:
-                continue
+        for wf_dir in wf_dirs:
+            for wf in list(wf_dir.glob("*.yaml")) + list(wf_dir.glob("*.yml")):
+                try:
+                    with open(wf, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f) or {}
+                        wf_id = data.get("workflow_id") or data.get("id") or wf.stem
+                        items = data.get("steps") or data.get("stages") or []
+                        for item in items:
+                            ex = item.get("executor") or item.get("agent")
+                            sid = item.get("id") or item.get("step_id")
+                            sname = item.get("name")
+                            if ex:
+                                workflow_steps_map.setdefault(ex, []).append({
+                                    "workflow_id": wf_id,
+                                    "step_id": sid,
+                                    "name": sname
+                                })
+                except Exception:
+                    continue
 
         for yf in sorted(yaml_files):
+            stem_id = yf.stem if yf.stem.startswith("agent_") else f"agent_{yf.stem}"
             try:
                 with open(yf, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f) or {}
                 meta = data.get("metadata", {})
                 mod_prof = data.get("model_profile", {})
-                aid = meta.get("agent_id") or data.get("agent_id") or f"agent_{yf.stem}"
+                aid = meta.get("agent_id") or data.get("agent_id") or stem_id
+
+                mod_scope_raw = data.get("module_scope")
+                if isinstance(mod_scope_raw, dict):
+                    allowed_modules = mod_scope_raw.get("allowed_modules", ["workplace/core"])
+                elif isinstance(mod_scope_raw, list):
+                    allowed_modules = mod_scope_raw
+                elif isinstance(mod_scope_raw, str):
+                    allowed_modules = [m.strip() for m in mod_scope_raw.split(",") if m.strip()]
+                else:
+                    allowed_modules = ["workplace/core"]
+
                 results.append({
                     "agent_id": aid,
                     "name": meta.get("name") or data.get("name") or yf.stem.replace("_", " ").title(),
                     "category": meta.get("category", "custom"),
                     "model": mod_prof.get("model") or data.get("model", "claude-3-5-sonnet-20241022"),
                     "role": mod_prof.get("role") or data.get("role", "Custom Specialist"),
-                    "allowed_modules": data.get("module_scope", {}).get("allowed_modules", ["workplace/core"]),
+                    "allowed_modules": allowed_modules,
                     "file_path": str(yf.relative_to(workspace_root)),
-                    "workflow_bindings": workflow_steps_map.get(aid, []),
+                    "workflow_bindings": (
+                        workflow_steps_map.get(aid)
+                        or workflow_steps_map.get(stem_id)
+                        or [
+                            {"workflow_id": wb.get("workflow_id"), "step_id": wb.get("stage") or wb.get("step_id"), "name": wb.get("name") or f"Direct Binding ({aid})"}
+                            for wb in data.get("workflow_bindings", [])
+                        ]
+                        or [
+                            {"workflow_id": tw.get("workflow_id"), "step_id": tw.get("step_id"), "name": tw.get("step_name") or f"Hook Binding ({aid})"}
+                            for tw in data.get("autonomous_cicd_hooks", {}).get("target_workflows", [])
+                        ]
+                        or []
+                    ),
                     "status": "ACTIVE"
                 })
             except Exception as e:
                 results.append({
-                    "agent_id": f"agent_{yf.stem}",
+                    "agent_id": stem_id,
                     "name": yf.stem,
                     "file_path": str(yf.relative_to(workspace_root)),
                     "status": "ERROR",

@@ -71,7 +71,7 @@ graph TD
     RuleInvariants["Safety Invariants (.nb/context/rules/)"]
     MerkleChain["Merkle State Ledger & WORM Vault"]
     TokenValidator["HMAC-SHA256 Handoff Token Sentinel"]
-    GatekeeperCli["Gatekeeper CLI (.nb/bin/percipience)"]
+    GatekeeperCli["Gatekeeper CLI (./percipience)"]
     HealingEngine["Autonomous Self-Healing Triad"]
   end
 
@@ -135,7 +135,7 @@ sequenceDiagram
 
 ### 2.2. Seven-Stage Pre-Merge Gatekeeper Lifecycle
 
-Step `[5/7]` of `./.nb/bin/percipience gate` validates this domain plan through seven immutable stages:
+Step `[5/7]` of `./percipience gate` validates this domain plan through seven immutable stages:
 
 1. **Stage 1 (AST Parse & Tokenization)**: Code passes Tree-Sitter AST syntax check with zero fatal syntax errors.
 2. **Stage 2 (Wire Contract Conformance)**: Input/output payloads conform 100% to `.nb/context/contracts/`.
@@ -547,30 +547,33 @@ $$S_{SP} = 0.20 S_{\text{AST}} + 0.25 S_{\text{Contract}} + 0.20 S_{\text{Behavi
 
 ## 11. Integration Testing Harness & Verification Suite
 
-```python
-# Location: workplace/tests/test_{{DOMAIN_SLUG}}_space.py
-import pytest
-from pathlib import Path
+```rust
+// Location: crates/{{CARGO_CRATE:-percipience-core}}/tests/test_{{DOMAIN_SLUG}}.rs
+use std::path::Path;
 
-def test_wire_contract_conformance():
-    """Verifies that domain payloads strictly conform to schemas."""
-    schema_path = Path(".nb/context/contracts/{{DOMAIN_WIRE_CONTRACT_1}}.yaml")
-    assert schema_path.exists(), "Wire contract 1 schema file missing"
+#[test]
+fn test_wire_contract_conformance() {
+    let schema_path = Path::new(".nb/context/contracts/{{DOMAIN_WIRE_CONTRACT_1}}.yaml");
+    assert!(schema_path.exists(), "Wire contract 1 schema file missing");
+}
 
-def test_cross_module_handoff_isolation():
-    """Verifies that handoff tokens prevent unauthorized DAG jumps."""
-    schema_path = Path(".nb/context/contracts/{{DOMAIN_WIRE_CONTRACT_2}}.json")
-    assert schema_path.exists(), "Wire contract 2 schema file missing"
+#[test]
+fn test_cross_module_handoff_isolation() {
+    let schema_path = Path::new(".nb/context/contracts/{{DOMAIN_WIRE_CONTRACT_2}}.json");
+    assert!(schema_path.exists(), "Wire contract 2 schema file missing");
+}
 
-def test_stage_handled_contracts():
-    """Verifies that all workflow stages declare and handle contracts."""
-    workflow_path = Path(".nb/agentic/custom/workflows/{{DELIVERY_WORKFLOW}}.yaml")
-    assert workflow_path.exists(), "Delivery workflow DAG missing"
+#[test]
+fn test_stage_handled_contracts() {
+    let workflow_path = Path::new(".nb/agentic/custom/workflows/{{DELIVERY_WORKFLOW}}.yaml");
+    assert!(workflow_path.exists(), "Delivery workflow DAG missing");
+}
 
-def test_surgical_rollback_isolation():
-    """Verifies that poisoning quarantine ledger is present."""
-    quarantine_path = Path("user/hitl/poisoning_quarantine.md")
-    assert quarantine_path.parent.exists(), "Quarantine directory missing"
+#[test]
+fn test_surgical_rollback_isolation() {
+    let quarantine_path = Path::new("user/hitl/poisoning_quarantine.md");
+    assert!(quarantine_path.parent().unwrap().exists(), "Quarantine directory missing");
+}
 ```
 
 ---

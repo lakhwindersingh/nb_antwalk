@@ -1,0 +1,1 @@
+../../agentic/custom/rulesets/worktree_isolation_rules.md

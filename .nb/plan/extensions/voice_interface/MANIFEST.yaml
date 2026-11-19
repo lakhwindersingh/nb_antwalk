@@ -15,21 +15,21 @@ file_versions:
   readme:
     path: README.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Quick overview and use cases
     content_hash: baf7df2c922d365c3df885b40abf2cbb71d17aa312bec6f122ad309a45ed772a
     line_count: 232
   concise:
     path: concise.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Layerable extension specification
     content_hash: 1edbfa0ae4902baf4eeab9499771eb7b29de5f9b0ed9a0c2f3a4574528755cd8
     line_count: 39
   detailed:
     path: detailed.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Implementation blueprint with audio pipeline
     content_hash: 8c608e267deb6b8dd1006c036213dd4c7dd398634dfdeb789a82f4a5470c9f45
     line_count: 372

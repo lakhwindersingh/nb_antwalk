@@ -25,71 +25,38 @@
       "description": "Personal OS HTTP MCP Server consuming http://127.0.0.1:8080/tools and http://127.0.0.1:8080/mcp"
     },
     "percipience": {
-      "command": "python3",
-      "args": [
-        ".nb/bin/percipience"
-      ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core",
-        "PERCIPIENCE_TERMINAL_MODE": "1",
-        "PERCIPIENCE_AST_COMPRESSION": "1"
-      },
-      "description": "Percipience Context Engineering CLI for running multi-agent workflows, managing worktrees, and auditing Merkle ledger."
-    },
-    "ast_optimizer": {
-      "command": "python3",
-      "args": [
-        ".nb/bin/percipience",
-        "optimize"
-      ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
-      },
-      "description": "Polyglot Tree-Sitter 6D AST skeletonization and token pruning engine (cuts prompt overhead by 60-85%)."
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/percipience",
+      "args": [],
+      "description": "Percipience Context Engineering OS & Single Static Binary Runtime."
     },
     "gatekeeper": {
-      "command": "python3",
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/percipience",
       "args": [
-        ".nb/bin/percipience",
         "gate"
       ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
-      },
       "description": "Automated 7-stage CI/CD gatekeeper validating wire contracts, security invariants, and test regressions."
     },
     "merkle_auditor": {
-      "command": "python3",
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/percipience",
       "args": [
-        ".nb/bin/percipience",
         "audit"
       ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
-      },
       "description": "Cryptographic SHA-256 Merkle DAG state auditor, recovery point validator, and maturity scorecard evaluator."
     },
-    "worktree_manager": {
-      "command": "python3",
+    "drift_sentinel": {
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/percipience",
       "args": [
-        ".nb/bin/percipience",
-        "worktree"
+        "drift"
       ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
-      },
-      "description": "Ephemeral Git worktree allocator and concurrency isolator preventing workspace clobbering."
+      "description": "Validate 6-Vector Semantic Parity & Anti-Drift Gatekeeper."
     },
-    "living_doc_engine": {
-      "command": "python3",
+    "finops_tokens": {
+      "command": "/Users/lakhwinder/RustroverProjects/nb_antwalk/percipience",
       "args": [
-        ".nb/bin/percipience",
-        "doc"
+        "tokens",
+        "summary"
       ],
-      "env": {
-        "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core"
-      },
-      "description": "AST-to-Mermaid architecture synchronizer and living contract documentation generator."
+      "description": "Token FinOps summary, compression metrics, and FinOps reconciliation."
     }
   }
 }

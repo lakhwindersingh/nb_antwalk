@@ -102,21 +102,21 @@ file_versions:
   concise:
     path: concise.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     content_hash: 5f93fff5723aea0e4ff7412a0a23588d81d9d5ead281d077edb46a9b107243d7
     line_count: 68
     primary_purpose: Concise specification
   detailed:
     path: detailed.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     content_hash: a381e442d5d601a9c78397a0d80f15a5a013f9344b38af3d2b672cdaaf212270
     line_count: 108
     primary_purpose: Detailed specification
   readme:
     path: README.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     content_hash: 3df43d5554d45d20f871ca5515111705158b5814d0528c8cf1950361a710da11
     line_count: 196
     primary_purpose: Readme specification

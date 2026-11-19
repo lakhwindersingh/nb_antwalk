@@ -95,8 +95,8 @@ Autonomous agents execute against standardized hooks:
 - **`PreExecutionHook`**: Ingests AST-pruned context ($\ge 60\%$ token compression) and validates contract schemas.
 - **`InFlightGuardrail`**: Scans diffs and prompts in real time for prompt injection, secret leaks, and unvetted dependencies.
 - **`HandoverHook`**: Synthesizes cryptographically signed `HandoffToken` with single-use nonce, artifact hash, and parity proof.
-- **`PreMergeGateHook`**: Runs the 7-Stage Pre-Merge Gatekeeper (`percipience gate`).
-- **`PostFailureHook`**: Triggers bounded 3-step diagnostic self-healing loop via `diagnostic_reprompt.py`.
+- **`PreMergeGateHook`**: Runs the 7-Stage Pre-Merge Gatekeeper (`./percipience gate`).
+- **`PostFailureHook`**: Triggers bounded 3-step diagnostic self-healing loop via `crates/percipience-core/src/diagnostic.rs`.
 - **`PostMergeSealHook`**: Seals cryptographic Merkle block and triggers immutable WORM egress.
 
 ### 3.2. Cryptographic Handover Protocol
@@ -179,6 +179,6 @@ This validates:
 
 ### Step 6: Verify Regression Test Suite
 ```bash
-pytest workplace/tests/
+cargo test --workspace
 ```
 Ensure 100% test pass rate across all workplace unit, integration, and security tests.

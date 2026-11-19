@@ -13,14 +13,14 @@ file_versions:
   readme:
     path: README.md
     version: 1.2.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Quick navigation, architecture summary, and onboarding
     content_hash: ecad10bd7cc1859df0d02219aaed98cc772f41fd20bac248d6321950b61cea67
     line_count: 91
   concise:
     path: concise.md
     version: 1.2.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Concise layerable domain specification, wire contract definition,
       and lean 3-crate alternative
     content_hash: 522ae979b7da2608b19c750dbe05d5c5079186b995d8d39f806e6c7af1265c51
@@ -28,7 +28,7 @@ file_versions:
   detailed:
     path: detailed.md
     version: 1.2.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Deep architectural blueprint, Rust crate design, SQLite schema,
       MCP catalog, and Section 8 Pragmatic Lean Architecture
     content_hash: a2ea258921d32f064fc90d14dadf812533b7a693f6424e94202ac30f3b8cd384

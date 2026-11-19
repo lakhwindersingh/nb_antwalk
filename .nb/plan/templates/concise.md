@@ -65,7 +65,7 @@ graph TD
     DomainContracts[".nb/context/contracts/"]
     DomainRules[".nb/context/rules/"]
     TokenValidator["HMAC-SHA256 Handoff Token Sentinel"]
-    PlatformGate[".nb/bin/percipience gate (7 Stages)"]
+    PlatformGate["./percipience gate (7 Stages)"]
     MerkleChain["Cryptographic Merkle Ledger & WORM"]
   end
 
@@ -134,8 +134,8 @@ Autonomous execution is governed by standard re-entrant lifecycle hooks:
 [PreExecutionHook]  -> Ingests AST-pruned context (<= 65% token savings) & verifies contract schemas.
 [InFlightGuardrail] -> Intercepts prompt injections, secret leaks, and unvetted dependencies.
 [HandoverHook]      -> Issues cryptographic HMAC-SHA256 HandoffToken bound to artifact & parity hash.
-[PreMergeGateHook]  -> Executes 7-Stage Pre-Merge Gatekeeper (percipience gate).
-[PostFailureHook]   -> Initiates bounded 3-step diagnostic self-healing (diagnostic_reprompt.py).
+[PreMergeGateHook]  -> Executes 7-Stage Pre-Merge Gatekeeper (./percipience gate).
+[PostFailureHook]   -> Initiates bounded 3-step diagnostic self-healing (crates/percipience-core/src/diagnostic.rs).
 [PostMergeSealHook] -> Seals SHA-256 Merkle block and triggers immutable WORM cloud egress.
 ```
 
@@ -198,16 +198,16 @@ python3 .nb/plan/scripts/sync_plan_versions.py
 bash .nb/plan/scripts/validate.sh
 
 # 3. Run regression integration tests across all tiers
-pytest workplace/tests/test_{{DOMAIN_SLUG}}_space.py -v
+cargo test -p {{CARGO_CRATE:-percipience-core}} --test test_{{DOMAIN_SLUG}}
 
 # 4. Execute 7-Stage Pre-Merge Gatekeeper pipeline
-./.nb/bin/percipience gate
+./percipience gate
 
 # 5. Verify 6-Vector Semantic Parity
-python3 workplace/core/semantic_parity_engine.py --enforce-gate
+./percipience drift check --enforce-gate
 
 # 6. Package into sealed .nbpack envelope
-./.nb/bin/percipience layer pack \
+./percipience layer pack \
   --plan .nb/plan/{{LAYER}}/{{DOMAIN_SLUG}}/concise.md \
   --output .nb/bundles/{{DOMAIN_SLUG}}_domain.nbpack
 ```

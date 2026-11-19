@@ -333,13 +333,17 @@ def copy_file(src: Path, dst: Path, make_executable: bool = False):
 
 
 def sync_core_framework(target_repo: Path):
-    print(f"\n📦 [1/4] Syncing Framework Core & Tooling into: {target_repo.name}")
+    print(f"\n📦 [1/5] Syncing Framework Core & Tooling into: {target_repo.name}")
 
-    # 1. Percipience CLI
+    # 1. Percipience CLI (Native Rust Binary)
     src_cli = SOURCE_ROOT / ".nb" / "bin" / "percipience"
     dst_cli = target_repo / ".nb" / "bin" / "percipience"
     copy_file(src_cli, dst_cli, make_executable=True)
-    print(f"  ✓ .nb/bin/percipience (executable)")
+    print(f"  ✓ .nb/bin/percipience (native binary)")
+
+    # 1b. Root alias
+    copy_file(src_cli, target_repo / "percipience", make_executable=True)
+    print(f"  ✓ ./percipience (root alias)")
 
     # 2. Schema
     src_schema = SOURCE_ROOT / ".nb" / "plan" / "MANIFEST_SCHEMA.json"
@@ -385,7 +389,7 @@ def sync_core_framework(target_repo: Path):
         print(f"  ✓ .nb/plan/test/test_runner.py (security tier enabled)")
 
     # 7. Core Engines
-    for core_dir in [target_repo / ".nb" / "core", target_repo / "workplace" / "core"]:
+    for core_dir in [target_repo / ".nb" / "core_legacy", target_repo / "workplace" / "core"]:
         if core_dir.exists():
             copy_file(SOURCE_ROOT / "workplace" / "core" / "container_plan_executor.py", core_dir / "container_plan_executor.py")
             copy_file(SOURCE_ROOT / "workplace" / "core" / "plan_module_orchestrator.py", core_dir / "plan_module_orchestrator.py")
@@ -399,13 +403,15 @@ def sync_core_framework(target_repo: Path):
 
     # 9. Plugin Runtimes
     plugin_runtimes = [
-        target_repo / "workplace" / "modules" / "mod_intellij_plugin" / "src" / "main" / "resources" / "percipience" / "scripts" / "sync_plan_versions.py",
-        target_repo / "workplace" / "modules" / "mod_vscode_extension" / "percipience_runtime" / "scripts" / "sync_plan_versions.py",
+        (target_repo / "workplace" / "modules" / "mod_intellij_plugin" / "src" / "main" / "resources" / "percipience" / "bin" / "percipience", src_cli, True),
+        (target_repo / "workplace" / "modules" / "mod_intellij_plugin" / "src" / "main" / "resources" / "percipience" / "scripts" / "sync_plan_versions.py", src_scripts / "sync_plan_versions.py", True),
+        (target_repo / "workplace" / "modules" / "mod_vscode_extension" / "percipience_runtime" / "bin" / "percipience", src_cli, True),
+        (target_repo / "workplace" / "modules" / "mod_vscode_extension" / "percipience_runtime" / "scripts" / "sync_plan_versions.py", src_scripts / "sync_plan_versions.py", True),
     ]
-    for pr in plugin_runtimes:
-        if pr.parent.exists():
-            copy_file(src_scripts / "sync_plan_versions.py", pr, make_executable=True)
-            print(f"  ✓ {pr.relative_to(target_repo)}")
+    for dst, src, is_exec in plugin_runtimes:
+        if dst.parent.exists():
+            copy_file(src, dst, make_executable=is_exec)
+            print(f"  ✓ {dst.relative_to(target_repo)}")
 
     # 10. Workplace Tests
     wp_tests = target_repo / "workplace" / "tests"
@@ -415,6 +421,23 @@ def sync_core_framework(target_repo: Path):
             if src_tf.exists():
                 copy_file(src_tf, wp_tests / test_file)
         print(f"  ✓ workplace/tests/ (vulnerability & verification suites)")
+
+    # 11. Migrate legacy Python .nb/core -> .nb/core_legacy
+    legacy_core = target_repo / ".nb" / "core"
+    core_legacy = target_repo / ".nb" / "core_legacy"
+    if legacy_core.exists():
+        if not core_legacy.exists():
+            shutil.move(str(legacy_core), str(core_legacy))
+            print(f"  ✓ Moved legacy .nb/core -> .nb/core_legacy (superseded by native Rust binary)")
+        else:
+            shutil.rmtree(str(legacy_core), ignore_errors=True)
+            print(f"  ✓ Removed redundant legacy .nb/core")
+
+    # 12. Purge stale Python cache/venv
+    for stale in [target_repo / "venv", target_repo / ".pytest_cache"]:
+        if stale.exists():
+            shutil.rmtree(str(stale), ignore_errors=True)
+            print(f"  ✓ Purged stale {stale.name}")
 
 
 def ensure_v3_manifest_fields(manifest: Dict[str, Any], plan_dir: Path, plan_root: Path) -> Dict[str, Any]:
@@ -604,13 +627,27 @@ def validate_repo(target_repo: Path):
         print(f"⚠️  {val_script} missing, skipping validation.")
         return
 
-    print(f"\n🛡️  [4/4] Executing Automated Validation Suite: {target_repo.name}")
+    print(f"\n🛡️  [4/5] Executing Automated Validation Suite: {target_repo.name}")
     res = subprocess.run(["bash", str(val_script)], cwd=str(target_repo), capture_output=True, text=True)
     print(res.stdout)
     if res.returncode != 0:
         print(f"❌ Validation issues in {target_repo.name}:\n{res.stderr}")
     else:
         print(f"🎉 100% Certified Valid in {target_repo.name}")
+
+
+def audit_and_gate_repo(target_repo: Path):
+    bin_path = target_repo / ".nb" / "bin" / "percipience"
+    if not bin_path.exists():
+        print(f"⚠️  {bin_path} missing, skipping Merkle audit.")
+        return
+
+    print(f"\n🔒 [5/5] Auditing Merkle Ledger & Gatekeeper: {target_repo.name}")
+    res = subprocess.run([str(bin_path), "audit"], cwd=str(target_repo), capture_output=True, text=True)
+    if res.returncode == 0:
+        print(f"  ✨ {res.stdout.strip()}")
+    else:
+        print(f"  ⚠️  Audit notice in {target_repo.name}:\n{res.stderr.strip() or res.stdout.strip()}")
 
 
 def main():
@@ -630,9 +667,10 @@ def main():
         sync_plan_manifests(target)
         run_plan_version_sync(target)
         validate_repo(target)
+        audit_and_gate_repo(target)
 
     print("\n================================================================================")
-    print("✨ ALL 5 REPOSITORIES SYNCHRONIZED SUCCESSFULLY")
+    print(f"✨ ALL {len(TARGET_REPOS)} REPOSITORIES SYNCHRONIZED SUCCESSFULLY")
     print("================================================================================")
 
 

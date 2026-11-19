@@ -1,11 +1,12 @@
 ---
-plan_type: "layerable_domain_plan"
-plan_id: "domain_thought_to_project"
-name: "Thought-to-Project Autonomous Plan Pipeline"
-parent_master_plan: ".nb/plan/master/parent-master-plan/concise.md"
+plan_type: "layerable_extension_plan"
+plan_id: "extension_thought_to_project"
+name: "Thought-to-Project Autonomous Plan Pipeline Extension"
+parent_plan: ".nb/plan/personal_os/concise.md"
+master_framework: ".nb/plan/master/parent-master-plan/concise.md"
 tier_mapping:
-  tier_2: "Enterprise Domain Rules & Wire Contracts (.nb/context/contracts/thought_to_project/, context/rules/)"
-  tier_3: "Specialist Subagents & Delivery Workflows (.nb/agentic/custom/agents/, agentic/custom/workflows/)"
+  tier_2: "Extension Wire Contracts & Rules (.nb/context/contracts/thought_to_project_*, context/rules/)"
+  tier_3: "Specialist Subagents & Delivery Workflows (.nb/agentic/custom/agents/agent_thought_*, agentic/custom/workflows/wf_thought_*)"
 model_tiering_policy:
   provider_agnostic: true
   tier_a_model: "claude-3-7-sonnet / pro"
@@ -140,8 +141,8 @@ methods:
 ```mermaid
 flowchart LR
     Step1["1. Parse Thought AST (pulldown-cmark)"] --> Step2["2. Compute Actionability & Ambiguity"]
-    Step2 -->|Entropy <= 0.40| Step3["3. Synthesize MVS & Domain Plan"]
-    Step2 -->|Entropy > 0.40| HITL["HITL Clarification RFC"]
+    Step2 -->|Entropy &le; 0.40| Step3["3. Synthesize MVS & Domain Plan"]
+    Step2 -->|Entropy &gt; 0.40| HITL["HITL Clarification RFC"]
     HITL --> Step3
     Step3 --> Step4["4. Decompose Petgraph Task DAG"]
     Step4 --> Step5["5. Provision Ephemeral Git Worktree"]
@@ -157,13 +158,13 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as User / Thinker
-    participant Thoughts as pos_thoughts (Zettelkasten)
-    participant Architect as agent_plan_architect
-    participant Projects as pos_projects (Task DAG & Git)
-    participant Worktree as Ephemeral Git Worktree
-    participant CICD as Autonomous CI/CD Triad (.nb/core)
-    participant Merkle as Percipience Merkle Gate
+    actor User as "User / Thinker"
+    participant Thoughts as "pos_thoughts (Zettelkasten)"
+    participant Architect as "agent_plan_architect"
+    participant Projects as "pos_projects (Task DAG & Git)"
+    participant Worktree as "Ephemeral Git Worktree"
+    participant CICD as "Autonomous CI/CD Triad (.nb/core)"
+    participant Merkle as "Percipience Merkle Gate"
 
     User->>Thoughts: Capture Thought ("Distributed Cache for Tantivy")
     User->>Thoughts: Execute: pos thought promote --id thought-123

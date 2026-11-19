@@ -16,21 +16,21 @@ file_versions:
   readme:
     path: README.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Quick overview and value proposition
     content_hash: 2b4f7996c5017576464db9c48ef205a58c13be71f128644fc83feaf2949785bf
     line_count: 159
   concise:
     path: concise.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Layerable extension specification
     content_hash: 3313b3d51725a464c9b794d30724e5ceccb439b931f28d0a095c1b7732850e7b
     line_count: 416
   detailed:
     path: detailed.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Implementation blueprint and integration points
     content_hash: 6d1c721c019e103949c5e45901699c7e6cb73e3d7d1cb72948832279026e7fa9
     line_count: 466

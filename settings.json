@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-settings.json",
-  "project_name": "nb_fairyfly",
-  "canonical_title": "Neutron Binary Percipience - Enterprise Context Engineering OS & Autonomous CI/CD Gatekeeper",
+  "project_name": "nb_antwalk",
+  "canonical_title": "Personal OS - Rust-based Agentic Life Operating System & Percipience Runtime",
   "version": "7.5.0",
   "architecture": "Quad-Space Context Engineering (.nb / workplace / user / .claude)",
   "settings_file": ".nb/config/claude_agents_settings.yaml",
@@ -26,8 +26,8 @@
     }
   },
   "runtime_environment": {
-    "PYTHONPATH": ".:.nb:.nb/core:workplace:workplace/core",
-    "PERCIPIENCE_CLI": ".nb/bin/percipience",
+    "PYTHONPATH": ".:.nb:.nb/core:.nb/core_legacy:workplace:workplace/core",
+    "PERCIPIENCE_CLI": "./percipience",
     "PERCIPIENCE_TERMINAL_MODE": "1",
     "PERCIPIENCE_AST_COMPRESSION": "1"
   },

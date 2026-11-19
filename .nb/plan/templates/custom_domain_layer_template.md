@@ -71,8 +71,8 @@ Autonomous agents executing this plan operate under the 4-tier Percipience autho
   - `PreExecutionHook`: Ingests AST-pruned context and verifies wire contract schemas.
   - `InFlightGuardrail`: Scans code diffs for prompt injection, secret leaks, and unvetted dependencies.
   - `HandoverHook`: Emits HMAC-SHA256 signed `HandoffToken` bound to artifact hash and $S_{SP} \ge 0.950$.
-  - `PreMergeGateHook`: Executes the 7-Stage Pre-Merge Gatekeeper (`percipience gate`).
-  - `PostFailureHook`: Initiates bounded 3-step diagnostic self-healing loop (`diagnostic_reprompt.py`).
+  - `PreMergeGateHook`: Executes the 7-Stage Pre-Merge Gatekeeper (`./percipience gate`).
+  - `PostFailureHook`: Initiates bounded 3-step diagnostic self-healing loop (`crates/percipience-core/src/diagnostic.rs`).
   - `PostMergeSealHook`: Commits state to Merkle ledger and triggers immutable WORM cloud egress.
 
 ---
@@ -248,10 +248,10 @@ python3 .nb/plan/scripts/sync_plan_versions.py
 bash .nb/plan/scripts/validate.sh
 
 # 3. Package into sealed .nbpack envelope
-./.nb/bin/percipience layer pack \
+./percipience layer pack \
   --plan .nb/plan/{{LAYER_LEVEL}}/{{DOMAIN_SLUG}}/concise.md \
   --output .nb/bundles/{{DOMAIN_SLUG}}_domain.nbpack
 
 # 4. Run PR Gatekeeper verification
-./.nb/bin/percipience gate
+./percipience gate
 ```

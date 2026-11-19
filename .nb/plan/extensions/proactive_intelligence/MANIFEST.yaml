@@ -13,14 +13,14 @@ file_versions:
   readme:
     path: README.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Overview, user scenarios, insight examples, and CLI commands
     content_hash: 4dc74424211c02c978f1fc1755f3c077719d4dea51063f09d54e54985fd020cc
     line_count: 423
   concise:
     path: concise.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Layerable specification, wire contracts, and statistical anomaly
       algorithms
     content_hash: 749129418b0ff36f729e87f44f2ee694b004660a990d63252616633eda803f6f
@@ -28,7 +28,7 @@ file_versions:
   detailed:
     path: detailed.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     content_hash: ad55f49de45782d94e3680935a94d1e60f53c4054613e6b22d091c97c9609d76
     line_count: 154
     primary_purpose: Detailed specification

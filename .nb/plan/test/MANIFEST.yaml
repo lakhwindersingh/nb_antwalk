@@ -1,0 +1,129 @@
+plan:
+  id: percipience_master_test_plan
+  name: Percipience Master Test Governance & AI-Assisted Verification Framework
+  category: plan
+  layer: test
+schema_version: 3.0.0
+plan_id: percipience_master_test_plan
+plan_name: Percipience Master Test Governance & AI-Assisted Verification Framework
+version: 1.0.0
+layer: test
+capability_rating: L2
+status: active
+maturity:
+  stage: COMPLETED
+  implementation_status: production_runtime
+  test_coverage: 100
+  production_ready: true
+semantic_parity:
+  composite_score: 0.985
+  gate_status: PASSED
+  vectors:
+    ast_parity: 0.99
+    contract_parity: 0.98
+    behavior_parity: 0.99
+    handover_parity: 0.98
+    doc_parity: 0.98
+    supply_chain_parity: 0.99
+dependencies:
+  requires:
+  - master_parent_framework
+  enables: []
+key_capabilities:
+- 18-Subsystem Test Pyramid
+- 4-Tier Commercial Capability Regression Matrix
+- OWASP LLM Top 10 & Zero-Trust Vulnerability Red Team
+- Pytest 8.4+ Allure Test Reporting
+- DeepEval & Ragas GenAI Evaluation Harness
+- Playwright 1.48+ Web Quality & WCAG 2.1 AA CI
+- Terraform Multi-Cloud IaC Assertion
+- Automated AI Failure Diagnosis & Surgical Patching
+autonomous_execution:
+  orchestrator_agent: agent_sequential_plan_orchestrator
+  specialist_agent: agent_test_governance_architect
+  execution_engine: dynamic_dag
+  worktree_isolation: true
+  max_healing_loops: 3
+  handoff_protocol: hmac_sha256_attested
+  anti_drift_gate: true
+  finops_metering: true
+lifecycle_hooks:
+  pre_spawn: percipience worktree lease --module test_governance
+  post_execution: cargo test --workspace
+  handover: percipience handoff issue --from agent_test_governance_architect --to
+    agent_red_team_sentinel
+  pre_merge_gate: percipience gate
+  self_healing: percipience heal --max-attempts 3
+  post_merge_seal: percipience merkle seal --worm-egress
+specification_contracts:
+  wire_contracts:
+  - path: .nb/context/contracts/master_test_runner_contract.yaml
+    type: RPC_OR_EVENT_STREAM
+    strict_mode: true
+  - path: .nb/context/contracts/test_telemetry_schema.json
+    type: STATE_TELEMETRY
+    strict_mode: true
+  invariant_rules:
+  - path: .nb/context/rules/test_pyramid_invariants.md
+    type: ARCHITECTURAL_BOUNDARIES
+  - path: .nb/context/rules/zero_regression_security_rules.md
+    type: PERFORMANCE_AND_SECURITY
+file_versions:
+  concise:
+    path: concise.md
+    version: 1.0.0
+    last_modified: '2026-11-19'
+    content_hash: 5c20b9f82e1f294491c296e8008569eb22e004d5ca8a1fa91e65c8f00d156a40
+    line_count: 99
+    primary_purpose: High-density testing specification for rapid AI context ingestion
+  detailed:
+    path: detailed.md
+    version: 1.0.0
+    last_modified: '2026-11-19'
+    content_hash: 60b05accb0b5d65da4fb2ea4a2eb7fb96f390dbf7fa75c0ba8071ae647aaeea0
+    line_count: 487
+    primary_purpose: Comprehensive 360-degree test plan covering all 18 subsystems
+  readme:
+    path: README.md
+    version: 1.0.0
+    last_modified: '2026-11-19'
+    content_hash: a4bafe9cd98a97dfef7329e3fd3b66d4aaaf771112cbdd0bd535de23f439d178
+    line_count: 106
+    primary_purpose: Space overview, test pyramid, and execution guide
+  test_runner:
+    path: test_runner.py
+    version: 1.0.0
+    last_modified: '2026-11-19'
+    content_hash: fe087d22d52e4e61a89ca1569014f81fdea30f2204ed5891b5f4e423c88c1306
+    line_count: 318
+    primary_purpose: Automatable AI test orchestrator, reporting engine, and failure
+      triager
+versions:
+  concise:
+    file: concise.md
+    format: token_optimized
+    target_tokens: 3500
+    version: 1.0.0
+    last_updated: '2026-11-11T18:04:01.108312Z'
+    content_hash: sha256:d98efffc369faa7abe2d007f71755b0cd6a470b14ec3820e6aae4b117e7a5506
+    lines: 109
+  detailed:
+    file: detailed.md
+    format: implementation_spec
+    target_tokens: 35000
+    version: 1.0.0
+    last_updated: '2026-11-11T18:04:01.108312Z'
+    content_hash: sha256:b2396976f805fe2d80b77fc6cb55420b9ae8606371cae08c4579ca9d31414cfc
+    lines: 432
+  readme:
+    file: README.md
+    format: overview
+    version: 1.0.0
+    last_updated: '2026-11-11T18:04:01.108312Z'
+    content_hash: sha256:3dc3b9efa445a40398c2aa7f057d97e8f3daa880929befe902ff4538c2ea068e
+    lines: 96
+sync_status:
+  in_sync: true
+  last_sync: '2026-11-11T18:04:01.108312Z'
+  sync_direction: concise_to_detailed
+  differences: []

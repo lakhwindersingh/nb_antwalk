@@ -13,14 +13,14 @@ file_versions:
   readme:
     path: README.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Overview, user scenarios, and CLI commands
     content_hash: cb53254d958bd6e630ad0364dcdca26d37e3bcf3b0403f25e358fbff567a8cb1
     line_count: 555
   concise:
     path: concise.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     primary_purpose: Layerable specification, wire contracts, and diarization audio
       pipeline
     content_hash: 6aa1e4d4d6397fbc8c56c3c78cf083ec997efe2ee22c5e34f41262ad1de037c9
@@ -28,7 +28,7 @@ file_versions:
   detailed:
     path: detailed.md
     version: 1.0.0
-    last_modified: '2026-11-18'
+    last_modified: '2026-11-19'
     content_hash: e00bb630c26b91389fceb6c19760d481f4cba4f577477b625c7c45052835e2f5
     line_count: 131
     primary_purpose: Detailed specification

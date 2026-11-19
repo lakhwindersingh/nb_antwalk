@@ -2,8 +2,77 @@
 
 **Plan ID**: `master_parent_framework`  
 **Capability Rating**: `Master (CAP-01 to CAP-36)`  
-**Version**: `7.5.0`  
+**Version**: `7.6.0`  
 **Operating Modes**: `single_module | multi_module`  
+**Phase 1 Bootstrap Status**: ✅ COMPLETE (2026-10-13)  
+**Phase 2 Registry & Hook Synchronization Status**: ✅ COMPLETE (2026-10-13)
+
+---
+
+## CRITICAL: Phase 1 Essential Capabilities (MUST-HAVE for Production CI/CD)
+
+**Status**: ✅ ALL IMPLEMENTED & PRODUCTION READY
+
+The following capabilities are now **MANDATORY** for all deployments (Free, Team, Business, Enterprise):
+
+1. **IMPL-1.1: Git Hook Auto-Installation** ✅ COMPLETE
+   - Pre-commit hooks auto-installed in CI/CD environment
+   - File: `.github/workflows/percipience.yml` (+6 lines)
+   - Status: Production ready, deployed 2026-10-13
+
+2. **IMPL-1.2: Pre-Commit Hook Validator** ✅ COMPLETE
+   - Local pre-commit validation (Merkle chain, semantic parity, ledger consistency)
+   - File: `.nb/git_hooks/pre-commit.sh` (NEW, 88 lines)
+   - Status: Syntax validated, deployed 2026-10-13
+
+3. **IMPL-2.1: Autonomous Agent Swarm Spawning** ✅ COMPLETE
+   - Agents now spawn per PR with Tier A/B/C orchestration
+   - File: `.github/workflows/percipience.yml` (+11 lines)
+   - Status: Production ready with graceful degradation, deployed 2026-10-13
+
+4. **IMPL-5.1: Merkle Chain Blocking Validation** ✅ COMPLETE
+   - Broken Merkle chains now BLOCK CI/CD (was non-blocking before)
+   - File: `.github/workflows/percipience.yml` (+8 lines enhanced)
+   - Status: Production ready, deployed 2026-10-13
+
+**Bootstrap Health Improvement**: 0.62 → **0.78 / 1.0** (+26%)
+
+**Implementation Tracking**: See `.nb/plan/master/PHASE_1_CAPABILITY_CHECKLIST.md` for complete checklist and Phase 2-4 roadmap.
+
+---
+
+## CRITICAL: Phase 2 Registry, Hook & Multi-LLM Synchronization (IMPLEMENTED)
+
+**Status**: ✅ IMPLEMENTED & WIRED INTO THE GATEKEEPER (2026-10-13)
+
+The following capabilities extend the Phase 1 bootstrap and are **MANDATORY** for Team, Business, and Enterprise deployments:
+
+1. **IMPL-2.2: Workflow Hook Registry Binding Validation** ✅ COMPLETE
+   - Native Rust Engine: `crates/percipience-orchestrator/src/registry_sync.rs` (CLI `./percipience registry sync`); agent: `.nb/agentic/custom/agents/agent_registry_synchronizer.yaml` (v1.3.0)
+   - Reconciles the registry sections embedded in every AI agent settings file against their canonical filesystem sources of truth:
+     - `agent_registry`     ← `.nb/agentic/custom/agents/*.yaml` (declared `agent_id`s)
+     - `context_rules`      ← `.nb/context/rules/**`
+     - `context_contracts`  ← `.nb/context/contracts/**`
+     - `workflow_registry`  ← `.nb/agentic/workflows/**` + `.nb/agentic/custom/workflows/**`
+     - `workflow_hooks`     ← agent `autonomous_cicd_hooks` / `workflow_bindings` + workflow trigger events
+   - Gatekeeper preflight: `step_registry_sync` in `.nb/agentic/workflows/pr_gatekeeper.yaml` (`fail_action: QUARANTINE_AND_HALT`).
+   - Deterministic, idempotent, and key-preserving; never mutates rule, contract, agent, or workflow contents.
+   - Tiers: Team ✅, Business ✅, Enterprise ✅
+
+2. **Multi-LLM Settings Projection** ✅ COMPLETE
+   - Materializes the same governed registry view for every supported coding agent (mirroring `terminal_agent_ast_proxy.SUPPORTED_AGENTS`):
+     - Claude Code → `settings.json`, `.claude/settings.json` (top-level, back-compatible)
+     - Gemini CLI → `.gemini/settings.json` (namespaced `percipience`)
+     - Aider → `.aider.conf.yml` (namespaced `percipience`, YAML)
+     - Cursor CLI → `.cursor/settings.json` (namespaced `percipience`)
+   - Non-Claude providers nest the platform block under a `percipience` namespace so provider-native keys are never clobbered.
+
+3. **Sequential Plan Module Orchestration** ✅ COMPLETE
+   - Native Rust Engine: `crates/percipience-orchestrator/src/submodule_orchestrator.rs` (CLI `percipience plan orchestrate` / `percipience plan bundle`).
+   - Discovers a plan's declared and discovered submodules, then synthesizes per-module agents, context rules, and a sequential derivation workflow (root → modules in dependency order → Merkle seal); idempotent.
+   - Tiers: Business ✅, Enterprise ✅
+
+**Phase 2 Health Target**: 0.78 → **0.86 / 1.0** (+11%)
 
 ---
 
@@ -40,7 +109,7 @@ graph TD
    - **Tier B (High-Throughput)**: AST extraction, test scaffolding, diff application (`claude-3-5-haiku`, `gemini-2.0-flash`, `gpt-4o-mini`).
    - **Tier C (Deterministic/Offline)**: AST pruning, SHA-256 Merkle chain verification, regex scanning.
 5. **CAP-05: Git Worktree Workspace Isolation**: Ephemeral worktrees (`.nb/workspaces/subagent_<id>/`) preventing concurrent file conflicts during parallel swarm execution.
-6. **CAP-06: Spec-to-Code Semantic Parity & Anti-Drift Engine**: Mathematical vector similarity and AST contract scoring (0.00–1.00) with Revert and Evolve modes.
+6. **CAP-06: Spec-to-Code Semantic Parity, Anti-Drift Engine & Attested Handover Governance**: Mathematical 6-vector parity scoring ($S_{SP} \ge 0.95$), Revert/Evolve dual reconciliation, attested handoff token generation binding artifact hashes and nonces, persistent outbox/inbox delivery spools with ACK receipts, and swarm graph cycle sentinel ($H_{\max} = 5$, `GAP-AGT-19`).
 7. **CAP-07: Bounded TDD Self-Healing & Test Quarantine**: Maximum 3 self-repair retries before quarantining failing tests in `context_ledger.yaml`.
 8. **CAP-08: Cryptographic Ledger Hash-Chain (Merkle Engine)**: Immutable SHA-256 chaining of all artifact diffs, test evidence, and state transitions.
 9. **CAP-09: Time-Travel Debugging & Visual DAG Dashboard**: Lightweight web dashboard (`user/outputs/dashboard/index.html`) with DAG inspection and diff visualizer.
@@ -51,7 +120,7 @@ graph TD
 14. **CAP-14: Proprietary Context Obfuscation (`.nbpack`)**: AES-256-GCM authenticated encryption sealing proprietary prompts and schemas into binary envelopes.
 15. **CAP-15: External Issue Tracker & Jira MCP Integration**: Bidirectional MCP server bridge for Jira, Linear, GitHub Issues, and Azure DevOps.
 16. **CAP-16: Autonomous Closed-Loop CI/CD Triad**: Self-Sustaining worktree hygiene, Self-Recovering surgical rollbacks, and Self-Improving AST calibration.
-17. **CAP-17: Extensible Custom Agent Plugin Architecture**: Open plugin interface (`.nb/core/agent_plugin_engine.py`) for custom specialist agents in `.nb/agentic/custom/agents/`.
+17. **CAP-17: Extensible Custom Agent Plugin Architecture**: Open plugin interface (`.nb/core/agent_plugin_engine.py`) for custom specialist agents in `.nb/agentic/custom/agents/`; the `AgentRegistrySynchronizer` (`.nb/core/agent_registry_synchronizer.py`) keeps the `agent_registry`, `context_rules`, `context_contracts`, `workflow_registry`, and `workflow_hooks` sections of every LLM settings file faithful to these canonical sources (IMPL-2.2).
 18. **CAP-18: Production Token FinOps & Rev-Share Metering**: Tracks raw vs AST-pruned tokens and logs accounting to `.nb/context/ledger/token_savings_ledger.yaml`.
 19. **CAP-19: 5-Tab Enterprise Observability Hub**: Browser control plane with Radar diagnostics, Swarm manager, DAG visualizer, FinOps calculator, and CI/CD triad controls.
 20. **CAP-20: 3-Tier Layered Context Precedence Hierarchy & BYOR Adapter**: Tier 1 Base Invariants > Tier 2 Enterprise Global Rules > Tier 3 Team Custom Context; multi-VCS adapter for GitLab, GitHub Enterprise, Bitbucket.
@@ -68,35 +137,33 @@ graph TD
 31. **CAP-31: Ephemeral Worktree Redis Cache & Canary Deployments**: Distributed redis locking for worktree concurrency and canary verification.
 32. **CAP-32: WORM Egress Storage Manager**: Write-Once-Read-Many tamper-proof cloud storage for audit compliance (SOC2/ISO27001).
 33. **CAP-33: One-Click Tenant & Project Scaffolding Wizard**: Automated CLI and Web wizard bootstrapping multi-tenant environments in $< 3$ seconds.
-34. **CAP-34: Cross-Plugin IDE Synchronizer**: Seamless state and contract sync across JetBrains (IntelliJ/PyCharm) and VSCode extensions.
+34. **CAP-34: Cross-Plugin IDE Synchronizer**: Seamless state and contract sync across JetBrains (IntelliJ/PyCharm) and VSCode extensions, plus multi-LLM settings projection (Claude Code, Gemini CLI, Aider, Cursor CLI) driven by the `AgentRegistrySynchronizer`.
 35. **CAP-35: Dual-Format Plan Synchronization Engine**: Automated SHA-256 versioning maintaining bi-directional consistency between concise and detailed specifications.
 36. **CAP-36: Commercial Pricing Tier Packaging & Cross-Platform Provisioning**: End-to-end packaging, filtering, and provisioning of runtime assets and licenses across IntelliJ, VSCode, and SaaS Portal per commercial tiers (`plan_free`, `plan_team`, `plan_business`, `plan_enterprise`).
 
 ---
 
-## 3. Core Engine Architecture
+## 3. Core Engine Architecture (Rust Native Workspace)
+
+Percipience is implemented as a high-performance, single static binary compiled with Rust (`./percipience`), backed by a modular Cargo workspace:
 
 ```
-.nb/
-├── bin/percipience                       # Sole canonical executable gatekeeper CLI
-├── config/
-│   ├── billing_plans.yaml                # Plan entitlement tiers
-│   ├── token_compression_rules.yaml      # AST pruning policies
-│   └── byor_config.yaml                  # Enterprise VCS adapter settings
-├── context/
-│   ├── contracts/                        # Inter-module and plugin wire contracts
-│   ├── invariants/                       # Non-overridable platform invariants
-│   ├── rules/                            # Enterprise global policies
-│   └── ledger/                           # Merkle DAG state ledgers
-├── core/                                 # 38 Python platform engines
-│   ├── ast_optimizer.py                  # Tree-Sitter AST compression
-│   ├── merkle_engine.py                  # SHA-256 state chain
-│   ├── autonomous_cicd.py                # Self-healing CI/CD triad
-│   ├── surgical_rollback.py              # Context poisoning isolation
-│   └── nbpack_envelope.py                # Encrypted envelope packaging
-└── agentic/
-    ├── custom/agents/                    # Custom agent manifests
-    └── custom/workflows/                 # Declarative YAML workflow DAGs
+percipience/
+├── Cargo.toml                            # Cargo Workspace root definition
+├── Cargo.lock                            # Deterministic pinned supply chain ledger
+├── crates/
+│   ├── percipience-core/                 # Merkle engine, AST pruning, DAG validation, crypto verification
+│   ├── percipience-cli/                  # Fast CLI interface (clap v4), rich terminal UI (ratatui)
+│   ├── percipience-orchestrator/         # Async DAG execution engine, lifecycle hooks, worktree isolation (tokio)
+│   ├── percipience-security/             # Zero-trust security mesh, KMS broker, capability sandbox, zeroize
+│   ├── percipience-lsp/                  # Language Server Protocol daemon for IntelliJ & VS Code (tower-lsp)
+│   ├── percipience-server/               # High-throughput asynchronous HTTP/gRPC server (axum, tower)
+│   └── percipience-packager/             # Multi-tier binary packager, asset embedding (rust-embed)
+├── target/release/percipience            # Compiled single static binary executable (< 15MB)
+└── .nb/
+    ├── bin/percipience                   # Canonical embedded binary runner
+    ├── context/                          # Wire contracts, invariants, policies, Merkle state ledgers
+    └── agentic/                          # Custom agent manifests & declarative workflow DAGs
 ```
 
 ---
@@ -115,4 +182,7 @@ graph TD
 
 # Compute Token FinOps savings
 ./.nb/bin/percipience tokens summary
+
+# Orchestrate a plan's submodules (also reconciles all LLM settings registries)
+./.nb/bin/percipience plan orchestrate --plan-dir .nb/plan/master/enterprise-ui-design-system
 ```

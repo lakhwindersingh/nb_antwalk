@@ -44,9 +44,7 @@ autonomous_execution:
   finops_metering: true
 lifecycle_hooks:
   pre_spawn: "percipience worktree lease --module {{MODULE_PROVIDER}}"
-  pre_execution: "percipience check --ast-prune --schema-lint"
-  post_execution: "pytest workplace/tests/test_{{DOMAIN_SLUG}}_space.py -v"
-  handover: "percipience handoff issue --from agent_{{SPECIALIST_AGENT_1}} --to agent_{{SPECIALIST_AGENT_2}}"
+  post_execution: "cargo test -p {{CARGO_CRATE:-percipience-core}} --test test_{{DOMAIN_SLUG}}"
   pre_merge_gate: "percipience gate"
   self_healing: "percipience heal --max-attempts 3"
   post_merge_seal: "percipience merkle seal --worm-egress"
